@@ -20,6 +20,7 @@ jjj is a tracking fork of [idursun/jjui](https://github.com/idursun/jjui) (MIT).
 |---|---|
 | `internal/config/loader.go` | identity variables (`AppDirName`, `EnvConfigDirName`, `RepoConfigDirName`) replace the jjui literals |
 | `.gitignore` | ignore `/jjj` and `/bin/` |
+| `internal/ui/ui.go` | `Extension` hook (`Extension`, `Core`, `NewWithExtension`, `inNormalMode`, `WindowTitlePrefix`) and its three call sites in `Init`/`Update`/`View` |
 
 ## Sync procedure (manual until P6 scripts it)
 

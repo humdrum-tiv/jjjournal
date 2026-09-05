@@ -68,11 +68,71 @@ type Model struct {
 	// mode2031Supported is set when the terminal confirms it supports
 	// mode 2031 push. Once true, the OSC 11 polling loop stops.
 	mode2031Supported bool
+
+	ext Extension
 }
 
 type scriptFrame struct {
 	runner       *scripting.Runner
 	completionID string
+}
+
+// Extension lets an embedding binary (jjj) add panels and keys around the
+// stock model without replacing its input handling. See internal/ui/shell.
+type Extension interface {
+	// Attach hands the Extension the stock models right after construction,
+	// before Init runs, so it can install seams (e.g. a row source factory).
+	Attach(core Core)
+	Init() tea.Cmd
+	// Update sees every message before the default handling. handled=true
+	// stops further processing; a non-nil cmd is batched either way.
+	Update(msg tea.Msg) (cmd tea.Cmd, handled bool)
+	// HandleKey is offered raw key presses while the UI is in normal mode
+	// (see inNormalMode). handled=true consumes the key.
+	HandleKey(msg tea.KeyMsg) (cmd tea.Cmd, handled bool)
+	// Render draws the main layout. Return false to use the default layout.
+	Render(dl *render.DisplayContext, box layout.Box, core Core) bool
+}
+
+// Core exposes the stock models an Extension composes into its layout.
+type Core struct {
+	Revisions *revisions.Model
+	Revset    *revset.Model
+	Status    *status.Model
+	// RenderMain draws the revisions list with its split content (preview,
+	// bookmark pane) into box, exactly as the default layout does.
+	RenderMain func(box layout.Box)
+}
+
+// WindowTitlePrefix is the leading part of the terminal window title.
+var WindowTitlePrefix = "jjui"
+
+// NewWithExtension is New with an Extension attached.
+func NewWithExtension(c *context.MainContext, ext Extension) tea.Model {
+	ui := NewUI(c)
+	ui.ext = ext
+	ext.Attach(ui.core())
+	return &wrapper{ui: ui}
+}
+
+func (m *Model) core() Core {
+	return Core{
+		Revisions:  m.revisions,
+		Revset:     m.revsetModel,
+		Status:     m.status,
+		RenderMain: func(box layout.Box) { m.renderSplit(m.revisions, box) },
+	}
+}
+
+// inNormalMode reports whether a raw key can safely be offered to the
+// Extension: nothing modal is open, no key sequence is pending, and no text
+// input or revision operation is active.
+func (m *Model) inNormalMode() bool {
+	return m.stacked == nil && m.diff == nil && m.oplog == nil && m.password == nil &&
+		len(m.sequenceHelp) == 0 &&
+		!m.revsetModel.IsEditing() && !m.status.IsFocused() &&
+		!m.splitContainer.ContentFocused() &&
+		m.revisions.InNormalMode() && !m.revisions.HasQuickSearch()
 }
 
 type triggerAutoRefreshMsg struct{}
@@ -84,7 +144,11 @@ const scopeUi keybindings.ScopeName = "ui"
 var colorSchemePollInterval = time.Second
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.revisions.Init(), m.scheduleAutoRefresh())
+	cmds := []tea.Cmd{m.revisions.Init(), m.scheduleAutoRefresh()}
+	if m.ext != nil {
+		cmds = append(cmds, m.ext.Init())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) selectionSnapshot() common.SelectionSnapshot {
@@ -152,6 +216,19 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	var cmds []tea.Cmd
+
+	if m.ext != nil {
+		if cmd, handled := m.ext.Update(msg); handled {
+			return m.withSelectionSync(cmd)
+		} else if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		if key, ok := msg.(tea.KeyMsg); ok && m.inNormalMode() {
+			if cmd, handled := m.ext.HandleKey(key); handled {
+				return m.withSelectionSync(cmd)
+			}
+		}
+	}
 
 	if cmd, handled := m.handleSplitMsg(msg); handled {
 		return m.withSelectionSync(cmd)
@@ -436,7 +513,7 @@ func (m *Model) View() string {
 		m.updateSplitAutoPosition()
 		if m.oplog != nil {
 			m.renderOpLogLayout(box)
-		} else {
+		} else if m.ext == nil || !m.ext.Render(m.displayContext, box, m.core()) {
 			m.renderRevisionsLayout(box)
 		}
 	}
@@ -815,7 +892,7 @@ func (w *wrapper) View() tea.View {
 		if config.Current.UI.SetWindowTitle == config.WindowTitleBase {
 			title = filepath.Base(title)
 		}
-		v.WindowTitle = fmt.Sprintf("jjui - %s", title)
+		v.WindowTitle = fmt.Sprintf("%s - %s", WindowTitlePrefix, title)
 	}
 	v.AltScreen = true
 	v.ReportFocus = true

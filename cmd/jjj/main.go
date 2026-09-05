@@ -25,6 +25,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/idursun/jjui/internal/ui"
+	"github.com/idursun/jjui/internal/ui/shell"
 )
 
 var Version string
@@ -273,7 +274,14 @@ func run() int {
 	appContext.CurrentRevset = appContext.DefaultRevset
 
 	// jjj: extension
-	p := tea.NewProgram(ui.New(appContext), tea.WithInput(os.Stdin))
+	ui.WindowTitlePrefix = "jjj"
+	var model tea.Model
+	if jjj.Current.Shell.Enabled {
+		model = ui.NewWithExtension(appContext, shell.New(appContext, jjj.Current))
+	} else {
+		model = ui.New(appContext)
+	}
+	p := tea.NewProgram(model, tea.WithInput(os.Stdin))
 	if config.Current.Ssh.HijackAskpass {
 		if err := askpassServer.StartListening(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: ssh.hijack_askpass: %v\n", err)
