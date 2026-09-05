@@ -406,10 +406,14 @@ func newJJRepo(t *testing.T) string {
 		t.Skip("jj not on PATH")
 	}
 	dir := t.TempDir()
+	cfg := filepath.Join(dir, "jj-config.toml")
+	if err := os.WriteFile(cfg, []byte("[user]\nname = \"t\"\nemail = \"t@example.com\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	run := func(args ...string) string {
 		cmd := exec.Command("jj", args...)
 		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "JJ_USER=t", "JJ_EMAIL=t@example.com", "JJ_CONFIG="+filepath.Join(dir, "no-config.toml"))
+		cmd.Env = append(os.Environ(), "JJ_CONFIG="+cfg)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("jj %v: %v\n%s", args, err, out)
@@ -429,7 +433,7 @@ func TestRowTemplatesRenderOneLine(t *testing.T) {
 	for name, tmpl := range map[string]string{"graph": RowTemplateGraph, "journal": RowTemplateJournal} {
 		cmd := exec.Command("jj", "log", "-r", "@-", "--no-graph", "--color", "never", "-T", tmpl)
 		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "JJ_CONFIG="+filepath.Join(dir, "no-config.toml"))
+		cmd.Env = append(os.Environ(), "JJ_CONFIG="+filepath.Join(dir, "jj-config.toml"))
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("%s template failed: %v\n%s", name, err, out)
@@ -448,7 +452,7 @@ func TestJournalTemplateShowsWorkingCopyMarker(t *testing.T) {
 	dir := newJJRepo(t)
 	cmd := exec.Command("jj", "log", "-r", "@", "--no-graph", "--color", "never", "-T", RowTemplateJournal)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "JJ_CONFIG="+filepath.Join(dir, "no-config.toml"))
+	cmd.Env = append(os.Environ(), "JJ_CONFIG="+filepath.Join(dir, "jj-config.toml"))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
@@ -1064,14 +1068,16 @@ func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
 }
 
 // HandleKey: digits and tab move focus; when Detail is focused the movement
-// keys scroll it. Everything else falls through to upstream.
+// keys scroll it. Everything else falls through to upstream. Printable keys
+// are matched on press.Text (the character actually typed, so "J" and "{"
+// work however the terminal reports shift); named keys on String().
 func (s *Shell) HandleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	press, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return nil, false
 	}
-	key := press.String()
-	if id, ok := focusKeys[key]; ok {
+	text, key := press.Text, press.String()
+	if id, ok := focusKeys[text]; ok {
 		s.setFocus(id)
 		return nil, true
 	}
@@ -1084,18 +1090,18 @@ func (s *Shell) HandleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, true
 	}
 	if s.focus == PanelDetail {
-		switch key {
-		case "j", "down":
+		switch {
+		case text == "j" || key == "down":
 			return s.detail.Scroll(1), true
-		case "k", "up":
+		case text == "k" || key == "up":
 			return s.detail.Scroll(-1), true
-		case "ctrl+d":
+		case key == "ctrl+d":
 			return s.detail.HalfPageDown(), true
-		case "ctrl+u":
+		case key == "ctrl+u":
 			return s.detail.HalfPageUp(), true
-		case "pgdown":
+		case key == "pgdown":
 			return s.detail.PageDown(), true
-		case "pgup":
+		case key == "pgup":
 			return s.detail.PageUp(), true
 		}
 	}
@@ -1907,8 +1913,12 @@ func (c *cannedRunner) RunCommandImmediate(args []string) ([]byte, error) {
 	return []byte(c.stamps), nil
 }
 
+// marker mimics one `jj log --color always` row start: the id marker, then
+// the styled short change id. The SGR sequence matters: the parser takes the
+// commit id from the text up to the next style boundary (row_line.go:44-47),
+// exactly as real output places a coloured change id right after the marker.
 func marker(changeID, commitID string) string {
-	return jj.JJUIPrefix + changeID + jj.JJUIPrefix + commitID + " "
+	return jj.JJUIPrefix + changeID + jj.JJUIPrefix + commitID + " \x1b[35m" + changeID + "\x1b[0m "
 }
 
 func TestNewSourceArrangesRowsAndServesOnce(t *testing.T) {
@@ -2056,6 +2066,8 @@ b. Add to `Shell`:
 ```go
 	journalMode atomic.Bool                    // read from the load goroutine
 	source      atomic.Pointer[journal.Source] // last journal source, for jump keys
+	dayStyle    lipgloss.Style                 // header styles, resolved on the UI loop in Attach
+	weekStyle   lipgloss.Style
 ```
 
 c. In `New`, after constructing the struct: `s.journalMode.Store(cfg.Journal.Enabled)` (and return `s`).
@@ -2067,6 +2079,8 @@ d. Replace `Attach` with:
 // row-source factory so the very first load already uses journal mode.
 func (s *Shell) Attach(core ui.Core) {
 	s.core, s.hasCore = core, true
+	dim := common.DefaultPalette.Get("revisions", "", "dimmed", false)
+	s.dayStyle, s.weekStyle = dim.Bold(true), dim
 	core.Revisions.SetRowSourceFactory(s.rowSource)
 }
 ```
@@ -2076,7 +2090,7 @@ e. Add the factory method:
 ```go
 // rowSource is the revisions.RowSourceFactory: the journal source in journal
 // mode, upstream's graph streamer otherwise. It runs inside the list's load
-// command (a goroutine), hence the atomics.
+// command (a goroutine), hence the atomics and the styles pre-resolved in Attach.
 func (s *Shell) rowSource(ctx gocontext.Context, runner appContext.CommandRunner, revset, jjTemplate string) (revisions.RowSource, error) {
 	if !s.journalMode.Load() {
 		s.source.Store(nil)
@@ -2086,11 +2100,10 @@ func (s *Shell) rowSource(ctx gocontext.Context, runner appContext.CommandRunner
 	if tmpl == "" {
 		tmpl = journal.RowTemplateJournal
 	}
-	dim := common.DefaultPalette.Get("revisions", "", "dimmed", false)
 	src, err := journal.NewSource(runner, revset, tmpl, s.cfg.Journal.Limit, journal.Options{
 		Now:       time.Now(),
-		DayStyle:  dim.Bold(true),
-		WeekStyle: dim,
+		DayStyle:  s.dayStyle,
+		WeekStyle: s.weekStyle,
 	})
 	if err != nil {
 		return nil, err // untyped nil, see revisions.DefaultRowSource
@@ -2105,7 +2118,7 @@ func (s *Shell) rowSource(ctx gocontext.Context, runner appContext.CommandRunner
 f. In `HandleKey`, before the `if s.focus == PanelDetail` block, add:
 
 ```go
-	switch key {
+	switch text {
 	case "J":
 		s.journalMode.Store(!s.journalMode.Load())
 		return common.RefreshAndKeepSelections, true
@@ -2114,7 +2127,7 @@ f. In `HandleKey`, before the `if s.focus == PanelDetail` block, add:
 		if src == nil || !s.hasCore || s.focus != PanelJournal {
 			return nil, false
 		}
-		if idx := journal.JumpTarget(src.HeaderIndices(), s.core.Revisions.Cursor(), key == "}"); idx >= 0 {
+		if idx := journal.JumpTarget(src.HeaderIndices(), s.core.Revisions.Cursor(), text == "}"); idx >= 0 {
 			s.core.Revisions.SetCursor(idx)
 		}
 		return nil, true
@@ -2195,7 +2208,6 @@ package statusinfo
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -2269,7 +2281,8 @@ func TestGather(t *testing.T) {
 		"main@origin..main":          "xx",
 		"main..main@origin":          "",
 	}}
-	info := Gather(runner, t.TempDir(), "origin", "all()", "journal", time.Now())
+	root := t.TempDir()
+	info := Gather(runner, root, "origin", "all()", "journal", time.Now())
 	require.Equal(t, "rkvnppyv", info.ChangeID)
 	require.Equal(t, "main", info.Bookmark)
 	require.True(t, info.HasRemote)
@@ -2277,7 +2290,7 @@ func TestGather(t *testing.T) {
 	require.Equal(t, 0, info.Behind)
 	require.Equal(t, "journal", info.Mode)
 	require.Equal(t, "all()", info.Revset)
-	require.True(t, strings.HasPrefix(info.Repo, ""), "repo is the directory basename")
+	require.Equal(t, filepath.Base(root), info.Repo, "repo is the directory basename")
 
 	noRemote := Gather(cannedRunner{byRevset: map[string]string{"@": "abc", "heads(::@ & bookmarks())": "feature"}}, t.TempDir(), "origin", "all()", "graph", time.Now())
 	require.Equal(t, "feature", noRemote.Bookmark)
@@ -2479,10 +2492,12 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (m *Model) reload() tea.Cmd {
+	// Read everything on the UI loop; the closure runs on another goroutine.
 	ctx, mode := m.ctx, m.mode()
+	root, revset := ctx.Location, ctx.CurrentRevset
 	remote := config.GetGitDefaultRemote(config.Current)
 	return func() tea.Msg {
-		return infoMsg{info: statusinfo.Gather(ctx, ctx.Location, remote, ctx.CurrentRevset, mode, time.Now())}
+		return infoMsg{info: statusinfo.Gather(ctx, root, remote, revset, mode, time.Now())}
 	}
 }
 
@@ -2728,7 +2743,7 @@ In `/Users/kortum/.claude/projects/-Users-kortum-Developer-Home-slog/memory/user
 
 ---
 
-### Task 8: Quickstart doc, upstream record, final checks, first push
+### Task 8: Quickstart doc, upstream record, final checks
 
 **Files:**
 - Create: `docs/jjj.md`
@@ -2808,21 +2823,20 @@ JJJ_CONFIG_DIR=/tmp/jjjcfg python3 scripts/pty-smoke.py bin/jjj ~/Developer/Home
   --expect "[1]─Status" --expect "[4]─Journal" --expect "[0]─Detail" --expect "══ Week" --expect "── Mon 2026-07-13" --expect "Commit ID"
 JJJ_CONFIG_DIR=/tmp/jjjcfg python3 scripts/pty-smoke.py bin/jjj ~/Developer/Home/ticktock --wait 12 --key J --after 6 --expect "Mon 2026-07-13 08:55"
 JJJ_CONFIG_DIR=/tmp/jjjcfg python3 scripts/pty-smoke.py bin/jjj ~/Developer/Home/ticktock --wait 8 --cols 100 --expect "revset: all()"
-git -C /Users/kortum/Developer/Home/jjjournal diff --stat main@upstream main -- internal cmd/jjui   # read-only: upstream files touched
+git -C /Users/kortum/Developer/Home/jjjournal diff --stat upstream/main main -- internal cmd/jjui   # read-only: upstream files touched
 ```
 
 Expected: everything `ok`; the diff-stat lists only `internal/config/loader.go`, `internal/ui/ui.go`, `internal/ui/revisions/revisions.go`, `internal/jj/commands.go` among pre-existing upstream files (everything else is new). If another upstream file shows up, either revert it or add it to `UPSTREAM.md` with a reason.
 
-- [ ] **Step 4: Commit and push the fork**
+- [ ] **Step 4: Commit (no push)**
 
 ```bash
 jj commit -m "docs(jjj): quickstart, upstream record, key collisions"
 jj bookmark set main -r @-
 jj log -r 'main@upstream..main' --no-graph -T 'change_id.short() ++ " " ++ description.first_line() ++ "\n"'
-jj git push -b main
 ```
 
-This is the first push of jjj work to the public fork (github.com/humdrum-tiv/jjjournal); upstream's GitHub workflows will run there. Confirm the log shows only the jjj commits on top of upstream before pushing.
+Do not push. Pushing to the public fork (github.com/humdrum-tiv/jjjournal, where upstream's GitHub workflows will run) is the controller's decision after the final review; report the commit list instead.
 
 ---
 
