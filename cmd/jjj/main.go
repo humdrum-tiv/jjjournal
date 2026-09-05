@@ -19,6 +19,7 @@ import (
 	"github.com/idursun/jjui/internal/ui/common"
 
 	"github.com/idursun/jjui/internal/config"
+	"github.com/idursun/jjui/internal/jjj"
 	"github.com/idursun/jjui/internal/scripting"
 	"github.com/idursun/jjui/internal/ui/context"
 
@@ -160,9 +161,17 @@ func run() int {
 	appContext := context.NewAppContext(rootLocation, askpassServer)
 	defer appContext.Histories.Flush()
 
+	if err := jjj.ApplyDefaults(config.Current); err != nil {
+		fmt.Fprintf(os.Stderr, "Error applying jjj defaults: %v\n", err)
+		return 1
+	}
 	if output, err := config.LoadConfigFile(); err == nil {
 		if err := config.Current.Load(string(output), config.GetConfigDir()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
+			return 1
+		}
+		if err := jjj.Current.Load(string(output)); err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading jjj configuration: %v\n", err)
 			return 1
 		}
 		for _, warning := range config.DeprecatedConfigWarnings(string(output)) {
@@ -179,6 +188,10 @@ func run() int {
 			repoConfigDir := filepath.Join(rootLocation, config.RepoConfigDirName)
 			if err := config.Current.Load(string(output), repoConfigDir); err != nil {
 				fmt.Fprintf(os.Stderr, "Error loading repository configuration: %v\n", err)
+				return 1
+			}
+			if err := jjj.Current.Load(string(output)); err != nil {
+				fmt.Fprintf(os.Stderr, "Error loading repository jjj configuration: %v\n", err)
 				return 1
 			}
 			for _, warning := range config.DeprecatedConfigWarnings(string(output)) {

@@ -1,0 +1,33 @@
+# jjj compiled-in defaults. Applied on top of upstream's embedded defaults and
+# before ~/.config/jjj/config.toml and <repo>/.jjj/config.toml, so every key
+# here can be overridden there. The row templates live in Go
+# (internal/journal/template.go) and are applied by ApplyDefaults.
+
+[revisions]
+revset = "all()"
+
+[preview]
+show_at_start = false
+revision_command = ["show", "--color", "always", "-r", "$change_id", "--stat", "--git"]
+file_command = ["diff", "--color", "always", "-r", "$change_id", "--git", "$file"]
+
+[journal]
+enabled = true
+limit = 5000
+daily_note = "~/Humdrum/Daily/{{date}}.md"
+callout = "journal"
+create_note = true
+
+[shell]
+enabled = true
+narrow_columns = 120
+left_width = 0.34
+notes_rows = 8
+hidden = []
+
+[tasks]
+enabled = true
+show_done = false
+
+[stats]
+weeks = 26
