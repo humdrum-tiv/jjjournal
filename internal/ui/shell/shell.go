@@ -3,7 +3,6 @@ package shell
 import (
 	gocontext "context"
 	"fmt"
-	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/idursun/jjui/internal/ui/preview"
 	"github.com/idursun/jjui/internal/ui/render"
 	"github.com/idursun/jjui/internal/ui/revisions"
+	"github.com/idursun/jjui/internal/ui/statuspanel"
 )
 
 // focusPanelMsg is produced by clicking a panel's rectangle.
@@ -39,6 +39,7 @@ type Shell struct {
 	focus   PanelID
 	core    ui.Core
 	hasCore bool
+	status  *statuspanel.Model
 	// active is true only while Render last drew the panels. It gates
 	// HandleKey so digits/tab/scroll keys fall through to the stock layout
 	// when the shell is disabled or the terminal is too narrow to show it.
@@ -53,6 +54,12 @@ type Shell struct {
 func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {
 	s := &Shell{ctx: ctx, cfg: cfg, detail: preview.New(ctx), focus: PanelJournal, active: true}
 	s.journalMode.Store(cfg.Journal.Enabled)
+	s.status = statuspanel.New(ctx, func() string {
+		if s.journalMode.Load() {
+			return "journal"
+		}
+		return "graph"
+	})
 	return s
 }
 
@@ -89,7 +96,7 @@ func (s *Shell) rowSource(ctx gocontext.Context, runner appContext.CommandRunner
 	return src, nil
 }
 
-func (s *Shell) Init() tea.Cmd { return s.detail.Init() }
+func (s *Shell) Init() tea.Cmd { return tea.Batch(s.detail.Init(), s.status.Init()) }
 
 // Update forwards every non-input message to our panels (the Detail preview
 // listens for SelectionChangedMsg/RefreshMsg and its own content message) and
@@ -109,7 +116,7 @@ func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
 	if common.IsInputMessage(msg) {
 		return nil, false
 	}
-	return s.detail.Update(msg), false
+	return tea.Batch(s.detail.Update(msg), s.status.Update(msg)), false
 }
 
 // HandleKey: digits and tab move focus; when Detail is focused the movement
@@ -190,7 +197,7 @@ func (s *Shell) Render(dl *render.DisplayContext, box layout.Box, core ui.Core) 
 	lay := Compute(content, s.cfg.Shell.LeftWidth)
 
 	s.panel(dl, lay.Status, PanelStatus, "Status", func(inner layout.Box) {
-		s.drawStatusPlaceholder(dl, inner)
+		s.status.ViewRect(dl, inner)
 	})
 	s.panel(dl, lay.Journal, PanelJournal, "Journal", func(inner layout.Box) {
 		rows := inner.V(layout.Fixed(1), layout.Fill(1))
@@ -230,13 +237,4 @@ func (s *Shell) panel(dl *render.DisplayContext, box layout.Box, id PanelID, tit
 		Styled(fmt.Sprintf("[%d]─%s", int(id), title), style.Bold(s.focus == id)).
 		Done()
 	draw(box.Inset(1))
-}
-
-// drawStatusPlaceholder is replaced by the statuspanel model in Task 6.
-func (s *Shell) drawStatusPlaceholder(dl *render.DisplayContext, inner layout.Box) {
-	dl.Text(inner.R.Min.X, inner.R.Min.Y, render.ZBase).
-		Write(filepath.Base(s.ctx.Location)).
-		NewLine().
-		Write(s.ctx.CurrentRevset).
-		Done()
 }
