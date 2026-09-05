@@ -35,10 +35,14 @@ type Shell struct {
 	focus   PanelID
 	core    ui.Core
 	hasCore bool
+	// active is true only while Render last drew the panels. It gates
+	// HandleKey so digits/tab/scroll keys fall through to the stock layout
+	// when the shell is disabled or the terminal is too narrow to show it.
+	active bool
 }
 
 func New(ctx *context.MainContext, cfg *jjj.Config) *Shell {
-	return &Shell{ctx: ctx, cfg: cfg, detail: preview.New(ctx), focus: PanelJournal}
+	return &Shell{ctx: ctx, cfg: cfg, detail: preview.New(ctx), focus: PanelJournal, active: true}
 }
 
 // Attach receives the stock models before Init; Task 5 installs the journal
@@ -53,6 +57,9 @@ func (s *Shell) Init() tea.Cmd { return s.detail.Init() }
 func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case focusPanelMsg:
+		if !s.active {
+			return nil, true
+		}
 		s.setFocus(msg.id)
 		return nil, true
 	case revisions.PaneClickedMsg, revisions.ItemClickedMsg:
@@ -70,6 +77,9 @@ func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
 // are matched on press.Text (the character actually typed, so "J" and "{"
 // work however the terminal reports shift); named keys on String().
 func (s *Shell) HandleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	if !s.active {
+		return nil, false
+	}
 	press, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return nil, false
@@ -118,8 +128,10 @@ func (s *Shell) setFocus(id PanelID) {
 func (s *Shell) Render(dl *render.DisplayContext, box layout.Box, core ui.Core) bool {
 	s.core, s.hasCore = core, true
 	if !s.cfg.Shell.Enabled || box.R.Dx() < s.cfg.Shell.NarrowColumns {
+		s.active = false
 		return false
 	}
+	s.active = true
 	content, statusLine := box.CutBottom(1)
 	lay := Compute(content, s.cfg.Shell.LeftWidth)
 

@@ -85,7 +85,8 @@ type Extension interface {
 	Attach(core Core)
 	Init() tea.Cmd
 	// Update sees every message before the default handling. handled=true
-	// stops further processing; a non-nil cmd is batched either way.
+	// stops further processing; a non-nil cmd is batched with whatever
+	// Update returns, on every return path.
 	Update(msg tea.Msg) (cmd tea.Cmd, handled bool)
 	// HandleKey is offered raw key presses while the UI is in normal mode
 	// (see inNormalMode). handled=true consumes the key.
@@ -208,7 +209,7 @@ func (m *Model) closeTopScope(msg common.CloseViewMsg) (tea.Cmd, bool) {
 	return nil, false
 }
 
-func (m *Model) Update(msg tea.Msg) tea.Cmd {
+func (m *Model) Update(msg tea.Msg) (cmd tea.Cmd) {
 	if closeMsg, ok := msg.(common.CloseViewMsg); ok {
 		if cmd, handled := m.closeTopScope(closeMsg); handled {
 			return m.withSelectionSync(cmd)
@@ -218,14 +219,16 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	var cmds []tea.Cmd
 
 	if m.ext != nil {
-		if cmd, handled := m.ext.Update(msg); handled {
-			return m.withSelectionSync(cmd)
-		} else if cmd != nil {
-			cmds = append(cmds, cmd)
+		extCmd, handled := m.ext.Update(msg)
+		if handled {
+			return m.withSelectionSync(extCmd)
+		}
+		if extCmd != nil {
+			defer func() { cmd = tea.Batch(extCmd, cmd) }()
 		}
 		if key, ok := msg.(tea.KeyMsg); ok && m.inNormalMode() {
-			if cmd, handled := m.ext.HandleKey(key); handled {
-				return m.withSelectionSync(cmd)
+			if keyCmd, handled := m.ext.HandleKey(key); handled {
+				return m.withSelectionSync(keyCmd)
 			}
 		}
 	}
