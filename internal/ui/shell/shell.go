@@ -1,16 +1,20 @@
 package shell
 
 import (
+	gocontext "context"
 	"fmt"
 	"path/filepath"
+	"sync/atomic"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/idursun/jjui/internal/journal"
 	"github.com/idursun/jjui/internal/jjj"
 	"github.com/idursun/jjui/internal/ui"
 	"github.com/idursun/jjui/internal/ui/common"
-	"github.com/idursun/jjui/internal/ui/context"
+	appContext "github.com/idursun/jjui/internal/ui/context"
 	"github.com/idursun/jjui/internal/ui/layout"
 	"github.com/idursun/jjui/internal/ui/preview"
 	"github.com/idursun/jjui/internal/ui/render"
@@ -29,7 +33,7 @@ var (
 // Shell is the ui.Extension that lays out panels 1 (Status), 4 (Journal)
 // and 0 (Detail) and routes keys by focused panel.
 type Shell struct {
-	ctx     *context.MainContext
+	ctx     *appContext.MainContext
 	cfg     *jjj.Config
 	detail  *preview.Model
 	focus   PanelID
@@ -39,15 +43,51 @@ type Shell struct {
 	// HandleKey so digits/tab/scroll keys fall through to the stock layout
 	// when the shell is disabled or the terminal is too narrow to show it.
 	active bool
+
+	journalMode atomic.Bool                    // read from the load goroutine
+	source      atomic.Pointer[journal.Source] // last journal source, for jump keys
+	dayStyle    lipgloss.Style                 // header styles, resolved on the UI loop in Attach
+	weekStyle   lipgloss.Style
 }
 
-func New(ctx *context.MainContext, cfg *jjj.Config) *Shell {
-	return &Shell{ctx: ctx, cfg: cfg, detail: preview.New(ctx), focus: PanelJournal, active: true}
+func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {
+	s := &Shell{ctx: ctx, cfg: cfg, detail: preview.New(ctx), focus: PanelJournal, active: true}
+	s.journalMode.Store(cfg.Journal.Enabled)
+	return s
 }
 
-// Attach receives the stock models before Init; Task 5 installs the journal
-// row-source factory here.
-func (s *Shell) Attach(core ui.Core) { s.core, s.hasCore = core, true }
+// Attach receives the stock models before Init and installs the journal
+// row-source factory so the very first load already uses journal mode.
+func (s *Shell) Attach(core ui.Core) {
+	s.core, s.hasCore = core, true
+	dim := common.DefaultPalette.Get("revisions", "", "dimmed", false)
+	s.dayStyle, s.weekStyle = dim.Bold(true), dim
+	core.Revisions.SetRowSourceFactory(s.rowSource)
+}
+
+// rowSource is the revisions.RowSourceFactory: the journal source in journal
+// mode, upstream's graph streamer otherwise. It runs inside the list's load
+// command (a goroutine), hence the atomics and the styles pre-resolved in Attach.
+func (s *Shell) rowSource(ctx gocontext.Context, runner appContext.CommandRunner, revset, jjTemplate string) (revisions.RowSource, error) {
+	if !s.journalMode.Load() {
+		s.source.Store(nil)
+		return revisions.DefaultRowSource(ctx, runner, revset, jjTemplate)
+	}
+	tmpl := s.cfg.Journal.Template
+	if tmpl == "" {
+		tmpl = journal.RowTemplateJournal
+	}
+	src, err := journal.NewSource(runner, revset, tmpl, s.cfg.Journal.Limit, journal.Options{
+		Now:       time.Now(),
+		DayStyle:  s.dayStyle,
+		WeekStyle: s.weekStyle,
+	})
+	if err != nil {
+		return nil, err // untyped nil, see revisions.DefaultRowSource
+	}
+	s.source.Store(src)
+	return src, nil
+}
 
 func (s *Shell) Init() tea.Cmd { return s.detail.Init() }
 
@@ -95,6 +135,20 @@ func (s *Shell) HandleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, true
 	case "shift+tab":
 		s.setFocus(s.focus.prev())
+		return nil, true
+	}
+	switch text {
+	case "J":
+		s.journalMode.Store(!s.journalMode.Load())
+		return common.RefreshAndKeepSelections, true
+	case "{", "}":
+		src := s.source.Load()
+		if src == nil || !s.hasCore || s.focus != PanelJournal {
+			return nil, false
+		}
+		if idx := journal.JumpTarget(src.HeaderIndices(), s.core.Revisions.Cursor(), text == "}"); idx >= 0 {
+			s.core.Revisions.SetCursor(idx)
+		}
 		return nil, true
 	}
 	if s.focus == PanelDetail {
