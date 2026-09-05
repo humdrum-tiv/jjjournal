@@ -1,7 +1,6 @@
 package journal
 
 import (
-	"context"
 	"errors"
 	"io"
 	"strings"
@@ -89,5 +88,4 @@ func TestNewSourcePropagatesJJErrors(t *testing.T) {
 func TestLogArgs(t *testing.T) {
 	args := LogArgs("all()", 5000, RowTemplateJournal)
 	require.Equal(t, []string{"log", "--no-graph", "--color", "always", "--quiet", "-r", "all()", "-T", jj.LogTemplate(RowTemplateJournal), "--limit", "5000"}, args)
-	_ = context.Background
 }

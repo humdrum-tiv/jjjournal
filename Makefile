@@ -1,5 +1,5 @@
 BIN ?= $(HOME)/bin
-REPO ?= $(HOME)/Developer/Home/ticktock
+REPO ?= .
 
 .PHONY: build install check smoke
 

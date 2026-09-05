@@ -32,6 +32,12 @@ every jjui key works, plus:
     narrow_columns = 120
     left_width     = 0.34
 
+Journal mode is delivered through the streaming row source, so jjj forces
+`[revisions] log_batching = true` at startup regardless of what's in your
+config file. `-n`/`--limit` applies to graph mode; journal mode uses
+`[journal] limit` instead. `journal.enabled` only takes effect when
+`[shell] enabled` is also true.
+
 ## Development
 
 Spec: `docs/superpowers/specs/2026-09-04-jjjournal-design.md`.

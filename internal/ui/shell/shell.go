@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/idursun/jjui/internal/config"
 	"github.com/idursun/jjui/internal/journal"
 	"github.com/idursun/jjui/internal/jjj"
 	"github.com/idursun/jjui/internal/ui"
@@ -69,6 +70,12 @@ func (s *Shell) Attach(core ui.Core) {
 	s.core, s.hasCore = core, true
 	dim := common.DefaultPalette.Get("revisions", "", "dimmed", false)
 	s.dayStyle, s.weekStyle = dim.Bold(true), dim
+	// Journal mode is delivered entirely through the streaming row source
+	// (rowSource below): revisions.Model.refresh only consults the factory
+	// on the streaming path and calls jj.Log directly otherwise, so a
+	// user's carried-over `log_batching = false` (e.g. from a jjui config)
+	// would silently bypass journal mode. Force it on.
+	config.Current.Revisions.LogBatching = true
 	core.Revisions.SetRowSourceFactory(s.rowSource)
 }
 
@@ -124,14 +131,36 @@ func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
 // are matched on press.Text (the character actually typed, so "J" and "{"
 // work however the terminal reports shift); named keys on String().
 func (s *Shell) HandleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
-	if !s.active {
-		return nil, false
-	}
 	press, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return nil, false
 	}
 	text, key := press.Text, press.String()
+
+	// J and {/} act on the revisions list, which is on screen in both the
+	// shell layout and the stock single-list layout it falls back to, so
+	// they must work even while the shell itself is inactive (narrow
+	// terminal). {/} additionally require PanelJournal focus, the only
+	// focus reachable while inactive since setFocus is gated below.
+	switch text {
+	case "J":
+		s.journalMode.Store(!s.journalMode.Load())
+		s.source.Store(nil) // drop the stale source: {/} must not use old header indices during the reload
+		return common.RefreshAndKeepSelections, true
+	case "{", "}":
+		src := s.source.Load()
+		if src == nil || !s.hasCore || s.focus != PanelJournal {
+			return nil, false
+		}
+		if idx := journal.JumpTarget(src.HeaderIndices(), s.core.Revisions.Cursor(), text == "}"); idx >= 0 {
+			s.core.Revisions.SetCursor(idx)
+		}
+		return nil, true
+	}
+
+	if !s.active {
+		return nil, false
+	}
 	if id, ok := focusKeys[text]; ok {
 		s.setFocus(id)
 		return nil, true
@@ -142,20 +171,6 @@ func (s *Shell) HandleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		return nil, true
 	case "shift+tab":
 		s.setFocus(s.focus.prev())
-		return nil, true
-	}
-	switch text {
-	case "J":
-		s.journalMode.Store(!s.journalMode.Load())
-		return common.RefreshAndKeepSelections, true
-	case "{", "}":
-		src := s.source.Load()
-		if src == nil || !s.hasCore || s.focus != PanelJournal {
-			return nil, false
-		}
-		if idx := journal.JumpTarget(src.HeaderIndices(), s.core.Revisions.Cursor(), text == "}"); idx >= 0 {
-			s.core.Revisions.SetCursor(idx)
-		}
 		return nil, true
 	}
 	if s.focus == PanelDetail {

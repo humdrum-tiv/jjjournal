@@ -64,3 +64,54 @@ func TestHandleKey(t *testing.T) {
 		})
 	}
 }
+
+// TestHandleKeyJKeepsWorkingWhenInactive covers the F3 fix: J toggles the
+// list's journal/graph mode, which is visible in the stock single-list
+// layout the shell falls back to under narrow_columns, so it must not be
+// gated behind s.active.
+func TestHandleKeyJKeepsWorkingWhenInactive(t *testing.T) {
+	s := newTestShell()
+	s.active = false
+	before := s.journalMode.Load()
+
+	cmd, handled := s.HandleKey(tea.KeyPressMsg{Code: 'J', Text: "J"})
+
+	require.True(t, handled)
+	require.NotNil(t, cmd)
+	require.Equal(t, !before, s.journalMode.Load())
+}
+
+// TestHandleKeyBraceJumpFallsThroughWithNilSource covers {/} while inactive:
+// they are evaluated before the active gate, but with no journal source
+// loaded yet (or in graph mode) there is nothing to jump to, so they must
+// report unhandled rather than panicking or consuming the key.
+func TestHandleKeyBraceJumpFallsThroughWithNilSource(t *testing.T) {
+	for _, text := range []string{"{", "}"} {
+		s := newTestShell()
+		s.active = false
+		s.focus = PanelJournal
+
+		_, handled := s.HandleKey(tea.KeyPressMsg{Text: text})
+
+		require.False(t, handled, "text=%q: nil source has nothing to jump to", text)
+	}
+}
+
+// TestHandleKeyDigitsAndTabStayUnhandledWhileInactive guards against widening
+// the F3 fix beyond J/{/}: focus-by-digit and tab must still fall through to
+// the stock layout while the shell is inactive.
+func TestHandleKeyDigitsAndTabStayUnhandledWhileInactive(t *testing.T) {
+	s := newTestShell()
+	s.active = false
+	s.focus = PanelStatus
+
+	for _, msg := range []tea.KeyPressMsg{
+		{Code: '0', Text: "0"},
+		{Code: '4', Text: "4"},
+		{Code: tea.KeyTab},
+	} {
+		_, handled := s.HandleKey(msg)
+		require.False(t, handled)
+		require.Equal(t, PanelStatus, s.focus, "focus must not change while inactive")
+	}
+}

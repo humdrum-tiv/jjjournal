@@ -27,6 +27,7 @@ type Source struct {
 	batch         parser.RowBatch
 	headerIndices []int
 	served        bool
+	skipped       int // lines ParseTimestamps couldn't parse; see Skipped
 }
 
 // NewSource runs the row query and the stamp query and arranges the rows.
@@ -45,11 +46,12 @@ func NewSource(runner appContext.CommandRunner, revset, rowTemplate string, limi
 	if err != nil {
 		return nil, err
 	}
-	stamps, _ := ParseTimestamps(stampOut)
+	stamps, skipped := ParseTimestamps(stampOut)
 	arranged := Arrange(rows, stamps, opts)
 	return &Source{
 		batch:         parser.RowBatch{Rows: arranged.Rows, HasMore: false},
 		headerIndices: arranged.HeaderIndices,
+		skipped:       skipped,
 	}, nil
 }
 
@@ -67,3 +69,8 @@ func (s *Source) Close() {}
 
 // HeaderIndices are the row indices carrying a day header, newest first.
 func (s *Source) HeaderIndices() []int { return s.headerIndices }
+
+// Skipped is the number of timestamp lines ParseTimestamps couldn't parse;
+// those rows are still shown, just unstamped and header-less. Not surfaced
+// in the UI yet.
+func (s *Source) Skipped() int { return s.skipped }

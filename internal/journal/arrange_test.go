@@ -104,6 +104,21 @@ func TestArrangeKeepsUnstampedRowsLastInOriginalOrder(t *testing.T) {
 	require.Len(t, got.Rows[1].Lines, 1, "unstamped rows get no header")
 }
 
+// TestArrangeNeverPanicsOnNilCommit guards the F7 fix: a row with no Commit
+// (e.g. a stray continuation/header line from the parser) must be skipped by
+// the stamp lookup and the header pass rather than panicking.
+func TestArrangeNeverPanicsOnNilCommit(t *testing.T) {
+	stamped := row("y", "stamped")
+	nilCommit := parser.Row{Lines: stamped.Lines}
+	rows := []parser.Row{nilCommit, stamped}
+	stamps := map[string]Stamp{"y": {Time: at(2026, 9, 4, 12, 0)}}
+
+	require.NotPanics(t, func() {
+		got := Arrange(rows, stamps, Options{Now: at(2026, 9, 4, 17, 0)})
+		require.Len(t, got.Rows, 2)
+	})
+}
+
 func TestJumpTarget(t *testing.T) {
 	headers := []int{0, 4, 9}
 	require.Equal(t, 4, JumpTarget(headers, 0, true))

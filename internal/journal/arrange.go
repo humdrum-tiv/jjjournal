@@ -44,18 +44,30 @@ func Arrange(rows []parser.Row, stamps map[string]Stamp, opts Options) Arranged 
 	copy(sorted, rows)
 	for i := range sorted {
 		sorted[i].Previous = nil
+		if sorted[i].Commit == nil {
+			continue // no CommitId to key stamps by; leave it unstamped
+		}
 		if s, ok := stamps[sorted[i].Commit.CommitId]; ok && s.WorkingCopy {
 			sorted[i].Commit.IsWorkingCopy = true
 		}
 	}
+	// stampOf and isWorkingCopy guard against a nil Commit (jjui's parser can
+	// hand back a header/continuation row with no commit) so Arrange never
+	// panics; such a row just sorts as unstamped and gets no day header.
 	stampOf := func(r parser.Row) (time.Time, bool) {
+		if r.Commit == nil {
+			return time.Time{}, false
+		}
 		s, ok := stamps[r.Commit.CommitId]
 		return s.Time.In(loc), ok
 	}
+	isWorkingCopy := func(r parser.Row) bool {
+		return r.Commit != nil && r.Commit.IsWorkingCopy
+	}
 	sort.SliceStable(sorted, func(i, j int) bool {
 		a, b := sorted[i], sorted[j]
-		if a.Commit.IsWorkingCopy != b.Commit.IsWorkingCopy {
-			return a.Commit.IsWorkingCopy
+		if isWorkingCopy(a) != isWorkingCopy(b) {
+			return isWorkingCopy(a)
 		}
 		at, aok := stampOf(a)
 		bt, bok := stampOf(b)
