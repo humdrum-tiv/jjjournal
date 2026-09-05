@@ -41,6 +41,16 @@ func ConfigListAll() CommandArgs {
 	return []string{"config", "list", "--color", "never", "--include-defaults", "--ignore-working-copy"}
 }
 
+// LogTemplate returns the template jjui parses rows from: the change/commit
+// id marker prefix followed by rowTemplate. Exported so other row sources
+// (jjj's journal mode) produce output the same parser understands.
+func LogTemplate(rowTemplate string) string {
+	prefix := fmt.Sprintf(
+		"stringify('%s' ++ separate('%s', change_id.shortest() ++ if(divergent, \"/\" ++ change_offset), commit_id.shortest()))",
+		JJUIPrefix, JJUIPrefix)
+	return fmt.Sprintf("%s ++ ' ' ++ %s", prefix, rowTemplate)
+}
+
 func Log(revset string, limit int, jjTemplate string) CommandArgs {
 	args := []string{"log", "--color", "always", "--quiet"}
 	if revset != "" {
@@ -54,11 +64,7 @@ func Log(revset string, limit int, jjTemplate string) CommandArgs {
 	if template == "" {
 		template = jjTemplate
 	}
-	prefix := fmt.Sprintf(
-		"stringify('%s' ++ separate('%s', change_id.shortest() ++ if(divergent, \"/\" ++ change_offset), commit_id.shortest()))",
-		JJUIPrefix, JJUIPrefix)
-	template = fmt.Sprintf("%s ++ ' ' ++ %s", prefix, template)
-	args = append(args, "-T", template)
+	args = append(args, "-T", LogTemplate(template))
 	return args
 }
 

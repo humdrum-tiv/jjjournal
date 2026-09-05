@@ -21,6 +21,8 @@ jjj is a tracking fork of [idursun/jjui](https://github.com/idursun/jjui) (MIT).
 | `internal/config/loader.go` | identity variables (`AppDirName`, `EnvConfigDirName`, `RepoConfigDirName`) replace the jjui literals |
 | `.gitignore` | ignore `/jjj` and `/bin/` |
 | `internal/ui/ui.go` | `Extension` hook (`Extension`, `Core`, `NewWithExtension`, `inNormalMode`, `WindowTitlePrefix`) and its three call sites in `Init`/`Update`/`View` |
+| `internal/jj/commands.go` | `LogTemplate` extracted from `Log` (pure extraction) so other row sources emit parser-compatible output |
+| `internal/ui/revisions/revisions.go` | `RowSource` interface, `RowSourceFactory`, `DefaultRowSource`, `SetRowSourceFactory`; `streamer` fields typed as the interface |
 
 ## Sync procedure (manual until P6 scripts it)
 

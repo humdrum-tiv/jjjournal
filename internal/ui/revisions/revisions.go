@@ -58,7 +58,8 @@ type Model struct {
 	tag                    atomic.Uint64
 	pendingReload          revisionReloadState
 	offScreenRows          []parser.Row
-	streamer               *graph.GraphStreamer
+	streamer               RowSource
+	rowSourceFactory       RowSourceFactory
 	hasMore                bool
 	baseOp                 operations.Operation
 	layers                 []common.ImmediateModel
@@ -117,7 +118,7 @@ type updateRevisionsMsg struct {
 }
 
 type streamingReadyMsg struct {
-	streamer *graph.GraphStreamer
+	streamer RowSource
 	tag      uint64
 	err      error
 	output   string
@@ -127,6 +128,34 @@ type appendRowsBatchMsg struct {
 	rows    []parser.Row
 	hasMore bool
 	tag     uint64
+}
+
+// RowSource feeds parsed `jj log` rows to the list in batches.
+// *graph.GraphStreamer is the stock implementation; jjj's journal mode
+// supplies another through SetRowSourceFactory.
+type RowSource interface {
+	RequestMore() parser.RowBatch
+	Close()
+}
+
+// RowSourceFactory builds the RowSource for one (re)load of revset.
+// jjTemplate is jj's own templates.log, used when no template is configured.
+type RowSourceFactory func(ctx context.Context, runner appContext.CommandRunner, revset string, jjTemplate string) (RowSource, error)
+
+// DefaultRowSource is the stock factory: a streaming `jj log` graph.
+func DefaultRowSource(ctx context.Context, runner appContext.CommandRunner, revset string, jjTemplate string) (RowSource, error) {
+	streamer, err := graph.NewGraphStreamer(ctx, runner, revset, jjTemplate)
+	if streamer == nil {
+		// Return an untyped nil: a nil *GraphStreamer stored in the interface
+		// would not compare equal to nil and the failure path would crash.
+		return nil, err
+	}
+	return streamer, err
+}
+
+// SetRowSourceFactory replaces the stock factory; nil restores the default.
+func (m *Model) SetRowSourceFactory(f RowSourceFactory) {
+	m.rowSourceFactory = f
 }
 
 func (m *Model) Cursor() int {
@@ -1300,7 +1329,11 @@ func (m *Model) loadStreaming(revset string, tag uint64) tea.Cmd {
 			return nil
 		}
 
-		streamer, err := graph.NewGraphStreamer(context.Background(), m.context, revset, m.context.JJConfig.Templates.Log)
+		factory := m.rowSourceFactory
+		if factory == nil {
+			factory = DefaultRowSource
+		}
+		streamer, err := factory(context.Background(), m.context, revset, m.context.JJConfig.Templates.Log)
 		var errMsg string
 		if err != nil {
 			if err == io.EOF {
