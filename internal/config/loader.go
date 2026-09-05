@@ -21,8 +21,17 @@ type mergeOverlay struct {
 	Bindings []BindingConfig `toml:"bindings"`
 }
 
+// Identity of the running application. cmd/jjj overrides these before any
+// config is read so that jjj uses ~/.config/jjj, JJJ_CONFIG_DIR and <repo>/.jjj
+// instead of jjui's directories. Upstream jjui leaves them at their defaults.
+var (
+	AppDirName        = "jjui"            // ~/.config/<AppDirName>/config.toml
+	EnvConfigDirName  = "JJUI_CONFIG_DIR" // environment variable overriding the config dir
+	RepoConfigDirName = ".jjui"           // <repo>/<RepoConfigDirName>/config.toml
+)
+
 func EnvConfigDir() string {
-	if dir := os.Getenv("JJUI_CONFIG_DIR"); dir != "" {
+	if dir := os.Getenv(EnvConfigDirName); dir != "" {
 		if s, err := os.Stat(dir); err == nil && s.IsDir() {
 			return dir
 		}
@@ -54,14 +63,14 @@ func getConfigFilePath() string {
 	}
 
 	for _, dir := range configDirs {
-		configPath := filepath.Join(dir, "jjui", "config.toml")
+		configPath := filepath.Join(dir, AppDirName, "config.toml")
 		if _, err := os.Stat(configPath); err == nil {
 			return configPath
 		}
 	}
 
 	if len(configDirs) > 0 {
-		return filepath.Join(configDirs[0], "jjui", "config.toml")
+		return filepath.Join(configDirs[0], AppDirName, "config.toml")
 	}
 	return ""
 }
@@ -225,7 +234,7 @@ func LoadConfigFile() ([]byte, error) {
 }
 
 func LoadRepoConfigFile(repoRoot string) ([]byte, error) {
-	repoConfigPath := filepath.Join(repoRoot, ".jjui", "config.toml")
+	repoConfigPath := filepath.Join(repoRoot, RepoConfigDirName, "config.toml")
 	data, err := os.ReadFile(repoConfigPath)
 	if err != nil {
 		return nil, err
@@ -234,7 +243,7 @@ func LoadRepoConfigFile(repoRoot string) ([]byte, error) {
 }
 
 func LoadRepoLuaConfigFile(repoRoot string) (string, error) {
-	luaFile := filepath.Join(repoRoot, ".jjui", "config.lua")
+	luaFile := filepath.Join(repoRoot, RepoConfigDirName, "config.lua")
 	data, err := os.ReadFile(luaFile)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

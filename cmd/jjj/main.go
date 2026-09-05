@@ -1,0 +1,308 @@
+package main
+
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"io/fs"
+	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"unicode"
+
+	"charm.land/lipgloss/v2"
+	"github.com/idursun/jjui/internal/askpass"
+	"github.com/idursun/jjui/internal/ui/common"
+
+	"github.com/idursun/jjui/internal/config"
+	"github.com/idursun/jjui/internal/scripting"
+	"github.com/idursun/jjui/internal/ui/context"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/idursun/jjui/internal/ui"
+)
+
+var Version string
+
+func getVersion() string {
+	if Version != "" {
+		// set explicitly from build flags
+		return Version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
+		// obtained by go build, usually from VCS
+		return info.Main.Version
+	}
+	return "unknown"
+}
+
+var (
+	revset          string
+	period          int
+	limit           int
+	version         bool
+	editConfig      bool
+	installLuaTypes bool
+	help            bool
+)
+
+func init() {
+	flag.StringVar(&revset, "revset", "", "Set default revset")
+	flag.StringVar(&revset, "r", "", "Set default revset (same as --revset)")
+	flag.IntVar(&period, "period", -1, "Override auto-refresh interval (seconds, set to 0 to disable)")
+	flag.IntVar(&period, "p", -1, "Override auto-refresh interval (alias for --period)")
+	flag.IntVar(&limit, "limit", 0, "Number of revisions to show (default: 0)")
+	flag.IntVar(&limit, "n", 0, "Number of revisions to show (alias for --limit)")
+	flag.BoolVar(&version, "version", false, "Show version information")
+	flag.BoolVar(&editConfig, "config", false, "Open configuration file in $EDITOR")
+	flag.BoolVar(&installLuaTypes, "install-lua-types", false, "Write Lua type definitions to config directory for LuaLS autocomplete")
+	flag.BoolVar(&help, "help", false, "Show help information")
+
+	flag.Usage = func() {
+		fmt.Printf("Usage: jjj [flags] [location]\n")
+		fmt.Println("Flags:")
+		flag.PrintDefaults()
+	}
+}
+
+func getJJRootDir(location string) (string, error) {
+	cmd := exec.Command("jj", "root", "--color=always")
+	cmd.Dir = location
+
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("%s", strings.TrimSpace(string(exitErr.Stderr)))
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func main() {
+	os.Exit(run())
+}
+
+func run() int {
+	// Identity: jjj reads its own config directories. Set before anything
+	// touches config. JJUI=1 stays set so `jj` conditionals written for jjui
+	// keep working under jjj.
+	config.AppDirName = "jjj"
+	config.EnvConfigDirName = "JJJ_CONFIG_DIR"
+	config.RepoConfigDirName = ".jjj"
+	os.Setenv("JJUI", "1")
+	os.Setenv("JJJ", "1")
+	askpassServer := askpass.NewUnstartedServer("JJUI")
+	if askpassServer.IsSubprocess() {
+		return 0
+	}
+
+	flag.Parse()
+	switch {
+	case help:
+		flag.Usage()
+		return 0
+	case version:
+		fmt.Println(getVersion())
+		return 0
+	case installLuaTypes:
+		result, err := config.SetupLuaTypes()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+		fmt.Printf("Lua type definitions written to %s\n", result.TypesPath)
+		if result.LuaRCCreated {
+			fmt.Printf("LuaLS config written to %s\n", result.LuaRCPath)
+		} else {
+			fmt.Printf("LuaLS config already exists at %s; leaving it unchanged\n", result.LuaRCPath)
+		}
+		return 0
+	case editConfig:
+		return config.Edit()
+	}
+
+	var location string
+	if args := flag.Args(); len(args) > 0 {
+		location = args[0]
+	}
+
+	if location == "" {
+		var err error
+		if location, err = os.Getwd(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: couldn't determine the current directory: %v.\n", err)
+			fmt.Fprintf(os.Stderr, "Please pass the location of a `jj` repo as an argument to `jjj`.\n")
+			return 1
+		}
+	}
+
+	rootLocation, err := getJJRootDir(location)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		return 1
+	}
+
+	if len(os.Getenv("JJUI_DEBUG")) > 0 {
+		f, err := tea.LogToFile("debug.log", "debug")
+		if err != nil {
+			log.Fatalf("failed to set logging file: %v", err)
+		}
+		defer f.Close()
+		log.SetOutput(f)
+	} else {
+		log.SetOutput(io.Discard)
+	}
+
+	appContext := context.NewAppContext(rootLocation, askpassServer)
+	defer appContext.Histories.Flush()
+
+	if output, err := config.LoadConfigFile(); err == nil {
+		if err := config.Current.Load(string(output), config.GetConfigDir()); err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
+			return 1
+		}
+		for _, warning := range config.DeprecatedConfigWarnings(string(output)) {
+			fmt.Fprintf(os.Stderr, "Warning: %s\n", warning)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+	// jjj: defaults
+	// if JJUI_CONFIG_DIR is set, skip loading repository config as env config takes precedence over both global and repo-local configs. Otherwise load repo-local config which overrides global config on conflicts.
+	if config.EnvConfigDir() == "" {
+		if output, err := config.LoadRepoConfigFile(rootLocation); err == nil {
+			repoConfigDir := filepath.Join(rootLocation, config.RepoConfigDirName)
+			if err := config.Current.Load(string(output), repoConfigDir); err != nil {
+				fmt.Fprintf(os.Stderr, "Error loading repository configuration: %v\n", err)
+				return 1
+			}
+			for _, warning := range config.DeprecatedConfigWarnings(string(output)) {
+				fmt.Fprintf(os.Stderr, "Warning: %s\n", warning)
+			}
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
+	}
+
+	if err := scripting.InitVM(appContext); err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing Lua VM: %v\n", err)
+		return 1
+	}
+	defer scripting.CloseVM(appContext)
+
+	if luaSource, err := config.LoadLuaConfigFile(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config.lua: %v\n", err)
+		return 1
+	} else if luaSource != "" {
+		appContext.TerminalHasDarkBackground = lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+		appContext.TerminalThemeDetected = true
+		if err := scripting.RunSetup(appContext, config.Current, luaSource); err != nil {
+			fmt.Fprintf(os.Stderr, "Error in config.lua: %v\n", err)
+			return 1
+		}
+	}
+
+	// if JJUI_CONFIG_DIR is set, skip loading repository config as env config takes precedence over both global and repo-local configs. Otherwise load repo-local config which overrides global config on conflicts.
+	if config.EnvConfigDir() == "" {
+		if luaSource, err := config.LoadRepoLuaConfigFile(rootLocation); err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading repository config.lua: %v\n", err)
+			return 1
+		} else if luaSource != "" {
+			if !appContext.TerminalThemeDetected {
+				appContext.TerminalHasDarkBackground = lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+				appContext.TerminalThemeDetected = true
+			}
+			if err := scripting.RunSetup(appContext, config.Current, luaSource); err != nil {
+				fmt.Fprintf(os.Stderr, "Error in repository config.lua: %v\n", err)
+				return 1
+			}
+		}
+	}
+
+	var theme config.ResolvedTheme
+	if !appContext.TerminalThemeDetected {
+		appContext.TerminalHasDarkBackground = lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+		appContext.TerminalThemeDetected = true
+	}
+
+	theme, err = config.ResolveTheme(appContext.TerminalHasDarkBackground, appContext.JJConfig.GetApplicableColors())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading theme: %v\n", err)
+		return 1
+	}
+	appContext.ThemeBackgroundBlend = theme.BackgroundBlend
+	common.DefaultPalette.Update(theme.Colors)
+	common.DefaultPalette.ConfigureBackgroundBlend(
+		theme.BackgroundBlend,
+		appContext.TerminalBackground,
+		appContext.TerminalPalette,
+	)
+
+	if period >= 0 {
+		config.Current.UI.AutoRefreshInterval = period
+	}
+	if limit > 0 {
+		config.Current.Limit = limit
+	}
+	if revset != "" {
+		appContext.DefaultRevset = revset
+	} else if config.Current.Revisions.Revset != "" {
+		appContext.DefaultRevset = config.Current.Revisions.Revset
+	} else {
+		appContext.DefaultRevset = appContext.JJConfig.Revsets.Log
+	}
+	appContext.CurrentRevset = appContext.DefaultRevset
+
+	// jjj: extension
+	p := tea.NewProgram(ui.New(appContext), tea.WithInput(os.Stdin))
+	if config.Current.Ssh.HijackAskpass {
+		if err := askpassServer.StartListening(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: ssh.hijack_askpass: %v\n", err)
+			return 1
+		}
+		defer askpassServer.Close()
+
+		go askpassServer.Serve(showPassword(p.Send))
+
+		// uncomment the line below to show a fake prompt upon startup
+		// go showPassword(p.Send)("test", "Enter PIN for 'ssh': ", make(<-chan struct{}))
+	}
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Error running program: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func showPassword(send func(tea.Msg)) func(name, prompt string, done <-chan struct{}) []byte {
+	adjustPrompt := func(s string) string {
+		// ensure that the prompt is not only made of spaces
+		for _, r := range s {
+			if !unicode.IsSpace(r) {
+				return s
+			}
+		}
+		return "ssh-askpass: "
+	}
+	return func(name, prompt string, done <-chan struct{}) []byte {
+		password := make(chan []byte, 1)
+		send(common.TogglePasswordMsg{
+			Prompt:   adjustPrompt(prompt),
+			Password: password,
+		})
+
+		select {
+		case <-done:
+			send(common.TogglePasswordMsg{})
+			return nil
+		case pw := <-password:
+			return pw
+		}
+	}
+}
