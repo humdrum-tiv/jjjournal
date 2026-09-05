@@ -31,3 +31,17 @@ jjj is a tracking fork of [idursun/jjui](https://github.com/idursun/jjui) (MIT).
     make check
     jj bookmark set main -r 'heads(main@upstream..)'
     jj git push
+
+## Key collisions
+
+Shell keys are intercepted raw (not through upstream's bindings) while the UI
+is in normal mode: `0` `1` `4`, `tab`, `shift+tab`, `J`, `{`, `}`, and, with
+Detail focused, `j` `k` `ctrl+d` `ctrl+u` `pgup` `pgdown`. Upstream's `tab`
+(split focus) is therefore unreachable in shell mode; the Detail panel is the
+preview. Tracked as a backlog task: make them rebindable actions.
+
+## Known cosmetic quirks
+
+- `p` (upstream preview toggle) opens a second preview inside the Journal
+  panel; harmless, close it with `p` again. jjj ships `show_at_start = false`
+  for this reason.
