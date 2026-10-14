@@ -10,6 +10,7 @@ import (
 
 	"github.com/idursun/jjui/internal/jj"
 	"github.com/idursun/jjui/internal/ui/common"
+	"github.com/idursun/jjui/internal/ui/context"
 )
 
 // Advance runs `jj bookmark advance` toward the revision selected in the
@@ -41,8 +42,20 @@ func (m *Model) Advance(toWorkingCopy bool) tea.Cmd {
 	}
 	return m.openConfirmation(
 		[]string{fmt.Sprintf("Advance %s to @ and push?", what)},
-		tea.Sequence(m.context.RunCommand(advance), m.context.RunCommand(jj.GitPush(flags...), common.Refresh)),
+		advanceThenPush(m.context, advance, flags),
 	)
+}
+
+// advanceThenPush runs the advance synchronously and pushes only if it
+// succeeded; a failed advance surfaces as a CommandCompletedMsg error and no
+// push is attempted. The push goes through the normal RunCommand path.
+func advanceThenPush(ctx *context.MainContext, advance jj.CommandArgs, flags []string) tea.Cmd {
+	return func() tea.Msg {
+		if out, err := ctx.RunCommandImmediate(advance); err != nil {
+			return common.CommandCompletedMsg{Output: string(out), Err: err}
+		}
+		return tea.BatchMsg{ctx.RunCommand(jj.GitPush(flags...), common.Refresh)}
+	}
 }
 
 // advanceNames are the multi-selected local bookmark names, in tree order.

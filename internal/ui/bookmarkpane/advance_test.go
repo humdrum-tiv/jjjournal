@@ -1,11 +1,14 @@
 package bookmarkpane
 
 import (
+	tea "charm.land/bubbletea/v2"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/idursun/jjui/internal/jj"
+	"github.com/idursun/jjui/internal/ui/common"
 	"github.com/idursun/jjui/test"
 )
 
@@ -46,7 +49,41 @@ func TestAdvanceWithoutRevisionContextDoesNothing(t *testing.T) {
 }
 
 func TestAdvanceToWorkingCopyAsksBeforePushing(t *testing.T) {
-	m := newAdvancePane(t, test.NewTestCommandRunner(t))
+	runner := test.NewTestCommandRunner(t)
+	defer runner.Verify()
+	m := newAdvancePane(t, runner)
 	m.Advance(true)
 	require.NotNil(t, m.confirmation, "advance + push waits for a yes")
+}
+
+func TestAdvanceThenPushSkipsPushWhenAdvanceFails(t *testing.T) {
+	runner := test.NewTestCommandRunner(t)
+	runner.Expect(jj.BookmarkAdvance("@", "feat")).SetError(errors.New("x"))
+	defer runner.Verify() // no push expectation: a push would fail the runner
+	ctx := test.NewTestContext(runner)
+
+	msg := advanceThenPush(ctx, jj.BookmarkAdvance("@", "feat"), []string{"--bookmark", "feat"})()
+	done, ok := msg.(common.CommandCompletedMsg)
+	require.True(t, ok)
+	require.Error(t, done.Err)
+}
+
+func TestAdvanceThenPushPushesAfterSuccess(t *testing.T) {
+	for name, flags := range map[string][]string{"selected": {"--bookmark", "feat"}, "none": nil} {
+		t.Run(name, func(t *testing.T) {
+			runner := test.NewTestCommandRunner(t)
+			runner.Expect(jj.BookmarkAdvance("@"))
+			runner.Expect(jj.GitPush(flags...))
+			runner.Expect(jj.BookmarkListAll()) // the pane reloads after the refresh
+			defer runner.Verify()
+			ctx := test.NewTestContext(runner)
+
+			msg := advanceThenPush(ctx, jj.BookmarkAdvance("@"), flags)()
+			batch, ok := msg.(tea.BatchMsg)
+			require.True(t, ok)
+			for _, c := range batch {
+				test.SimulateModel(New(ctx), c)
+			}
+		})
+	}
 }

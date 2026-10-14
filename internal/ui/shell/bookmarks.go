@@ -23,7 +23,10 @@ func (p *bookmarksPanel) init() tea.Cmd { return p.m.OnShow() }
 // update keeps the pane's revision context in sync, as ui.syncBookmarkPaneContext
 // does for the split pane: it sorts by proximity and advances toward it.
 func (p *bookmarksPanel) update(msg tea.Msg) tea.Cmd {
-	p.sync()
+	switch msg.(type) {
+	case common.SelectionChangedMsg, common.UpdateRevisionsSuccessMsg:
+		p.sync()
+	}
 	return p.m.Update(msg)
 }
 
