@@ -16,6 +16,7 @@
 2. **Seams are optional interfaces, not new `Extension` methods.** `ui.go` type-asserts the extension against the existing `common.ScopeProvider` and `common.SelectionProvider`; the `Extension` interface is unchanged.
 3. **Files tree view (`t`) and the Bookmarks `@` marker are deferred** to backlog follow-ups (Task 8 files them). Both need edits to existing upstream rendering code (`details_list.go`, `bookmarkpane/view.go`); the bookmark pane already sorts bookmarks at the selected revision to the top.
 4. **Files resolve is `M` (shift+m), not `m`:** upstream's file-details scope already binds `m` to toggle-select. Resolve runs on any file; jj itself reports "no conflicts" for a clean one.
+5. **Files hosts upstream's modal `details.Operation` persistently rather than `DetailsList` (spec §4.2);** the shell compensates for its modal assumptions (final-review fixes F1/F4: a `common.Close` from the hosted op also clears its confirmation, focus cannot leave an editing panel, confirmation messages reach only the focused panel). A jjj-side async host over `DetailsList` is a follow-up task.
 
 ## Global Constraints
 

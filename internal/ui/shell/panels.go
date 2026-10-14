@@ -44,8 +44,13 @@ type selectionPanel interface {
 // handler is the common.ScopeHandler behind every jjj scope.
 type handler struct{ s *Shell }
 
-func (h handler) HandleIntent(intent intents.Intent) (tea.Cmd, bool) { return h.s.handleIntent(intent) }
-func (h handler) Update(tea.Msg) tea.Cmd                             { return nil }
+// HandleIntent also syncs Files' visibility: focus and zoom intents change
+// which panels are drawn.
+func (h handler) HandleIntent(intent intents.Intent) (tea.Cmd, bool) {
+	cmd, handled := h.s.handleIntent(intent)
+	return tea.Batch(cmd, h.s.syncVisibility()), handled
+}
+func (h handler) Update(tea.Msg) tea.Cmd { return nil }
 
 // journalPanel draws upstream's revset line and revisions list; its keys
 // are upstream's own scopes, so it contributes none.

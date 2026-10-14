@@ -10,9 +10,12 @@ import (
 	"github.com/idursun/jjui/internal/jj"
 	keybindings "github.com/idursun/jjui/internal/ui/bindings"
 	"github.com/idursun/jjui/internal/ui/common"
+	"github.com/idursun/jjui/internal/ui/diff"
+	"github.com/idursun/jjui/internal/ui/help"
 	"github.com/idursun/jjui/internal/ui/input"
 	"github.com/idursun/jjui/internal/ui/intents"
 	"github.com/idursun/jjui/internal/ui/layout"
+	"github.com/idursun/jjui/internal/ui/oplog"
 	"github.com/idursun/jjui/internal/ui/render"
 	"github.com/idursun/jjui/test"
 )
@@ -62,6 +65,47 @@ func TestExtensionScopesAbsentWhileStackedViewOpen(t *testing.T) {
 	m.stacked = input.NewWithTitle("Prompt", "Text: ", "")
 
 	assert.Equal(t, -1, indexOf(scopeNames(m.dispatchScopes()), "jjj.fake"))
+}
+
+func fakeScopeExt() *fakeExt {
+	return &fakeExt{scopes: []common.Scope{{Name: "jjj.fake", Leak: common.LeakAll, Global: true, Handler: fakeHandler{}}}}
+}
+
+// Inside the diff overlay the extension's scopes (jjj.shell is Global)
+// must not be visible: digits/tab would act on hidden panels.
+func TestExtensionScopesAbsentWhileDiffOpen(t *testing.T) {
+	m := newExtModel(t, fakeScopeExt())
+	m.diff = diff.New("content")
+
+	assert.Equal(t, -1, indexOf(scopeNames(common.VisibleScopes(m.dispatchScopes())), "jjj.fake"))
+	assert.False(t, m.core().InNormalMode())
+}
+
+// With upstream's split bookmark pane focused the user types into its
+// filter/rename input; jjj must not take 2, J or tab.
+func TestExtensionScopesAbsentWhileSplitPaneFocused(t *testing.T) {
+	m := newExtModel(t, fakeScopeExt())
+	_, _ = m.splitContainer.ShowContent(bookmarkContentID)
+	m.splitContainer.FocusSplitContent()
+	require.True(t, m.splitContainer.ContentFocused())
+
+	assert.Equal(t, -1, indexOf(scopeNames(m.dispatchScopes()), "jjj.fake"))
+	assert.False(t, m.core().InNormalMode())
+}
+
+func TestExtensionScopesAbsentWhileOpLogOpen(t *testing.T) {
+	m := newExtModel(t, fakeScopeExt())
+	m.oplog = oplog.New(m.context)
+
+	assert.Equal(t, -1, indexOf(scopeNames(m.dispatchScopes()), "jjj.fake"))
+}
+
+func TestCoreInNormalModeIgnoresPendingSequence(t *testing.T) {
+	m := newExtModel(t, fakeScopeExt())
+	require.True(t, m.core().InNormalMode())
+	m.sequenceHelp = []help.Entry{{}}
+	assert.True(t, m.core().InNormalMode(), "a pending sequence must not change the scope set")
+	assert.GreaterOrEqual(t, indexOf(scopeNames(m.dispatchScopes()), "jjj.fake"), 0)
 }
 
 func TestExtensionSelectionWinsOverRevisions(t *testing.T) {

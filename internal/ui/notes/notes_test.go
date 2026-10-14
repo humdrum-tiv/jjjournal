@@ -79,3 +79,16 @@ func drainDebounced(t *testing.T, cmd tea.Cmd) tea.Msg {
 	t.Helper()
 	return cmd()
 }
+
+func TestDescriptionErrorIsWrapped(t *testing.T) {
+	m := New(test.NewTestContext(test.NewTestCommandRunner(t)))
+	m.changeID, m.seq = "abc", 1
+	m.Update(descMsg{changeID: "abc", seq: 1, err: errors.New("Error: no such revision\nHint: check the change id carefully please")})
+	lines := m.Lines(20)
+	require.Greater(t, len(lines), 2)
+	require.True(t, strings.HasPrefix(lines[0], "(description"), "got %q", lines[0])
+	for _, l := range lines {
+		require.NotContains(t, l, "\n")
+		require.LessOrEqual(t, len(l), 20, "line %q", l)
+	}
+}

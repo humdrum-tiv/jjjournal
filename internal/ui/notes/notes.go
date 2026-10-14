@@ -76,12 +76,13 @@ func (m *Model) reload() tea.Cmd {
 }
 
 // Lines is the description wrapped to width; "(no description)" when empty,
-// or a single "(description unavailable: ...)" line when the load failed.
+// or "(description unavailable: ...)", wrapped the same way, when the load
+// failed (jj's stderr may span several lines).
 func (m *Model) Lines(width int) []string {
-	if m.err != nil {
-		return []string{"(description unavailable: " + m.err.Error() + ")"}
-	}
 	text := strings.TrimRight(m.text, "\n ")
+	if m.err != nil {
+		text = "(description unavailable: " + strings.TrimRight(m.err.Error(), "\n ") + ")"
+	}
 	if strings.TrimSpace(text) == "" {
 		return []string{"(no description)"}
 	}

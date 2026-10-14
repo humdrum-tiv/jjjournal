@@ -20,7 +20,10 @@ jjj is a tracking fork of [idursun/jjui](https://github.com/idursun/jjui) (MIT).
 |---|---|
 | `internal/config/loader.go` | identity variables (`AppDirName`, `EnvConfigDirName`, `RepoConfigDirName`) replace the jjui literals |
 | `.gitignore` | ignore `/jjj` and `/bin/` |
-| `internal/ui/ui.go` | `Extension` hook (`Extension`, `Core`, `NewWithExtension`, `inNormalMode`, `WindowTitlePrefix`) and its three call sites in `Init`/`Update`/`View`; `Update`'s return value became a named result (`cmd tea.Cmd`) with a deferred `cmd = tea.Batch(extCmd, cmd)` so the extension's command is folded into every return path, not just one. P2a: an extension implementing `common.ScopeProvider` has its scopes inserted before the revisions scopes in `dispatchScopes` (revisions-primary branch only), and one implementing `common.SelectionProvider` is consulted in `selectionProviders` before revisions |
+| `internal/ui/ui.go` | `Extension` hook (`Extension`, `Core`, `NewWithExtension`, `inNormalMode`, `WindowTitlePrefix`) and its three call sites in `Init`/`Update`/`View`; `Update`'s return value became a named result (`cmd tea.Cmd`) with a deferred `cmd = tea.Batch(extCmd, cmd)` so the extension's command is folded into every return path, not just one. P2a: an extension implementing `common.ScopeProvider` has its scopes inserted before the revisions scopes in `dispatchScopes` (revisions-primary branch only), and one implementing `common.SelectionProvider` is consulted in `selectionProviders` before revisions. P2a final review: `inNormalMode` split into `len(sequenceHelp) == 0 && noModalOpen()` (pure extraction); `noModalOpen` gates the extension scopes in `dispatchScopes` (no jjj key inside the diff overlay, split-pane focus, stacked views, password, status input or a revision operation) and is exposed as the new `Core.InNormalMode` field, which the shell uses to leave clicks in upstream's inline details / split pane alone. The pending-sequence clause is left out so the scope set does not change mid-sequence |
+| `internal/ui/ui_extension_test.go` | new test file: extension scope order, selection, and absence of extension scopes while a stacked view, the diff overlay, the oplog or split-pane focus is active |
+| `internal/jj/jjj_commands_test.go` | new test file for `jjj_commands.go` |
+| `internal/ui/bookmarkpane/advance_test.go` | new test file for `advance.go` |
 | `internal/ui/intents/jjj_intents.go` | new file: jjj intent types and `//jjui:bind` annotations (the generator scans only this directory); no upstream intent file edited |
 | `internal/jj/jjj_commands.go` | new file: jjj command builders (`BookmarkAdvance`, `FileAnnotate`, `ResolveFiles`, `DiffEditFiles`) |
 | `internal/ui/actions/catalog_gen.go`, `internal/ui/actionmeta/builtins_gen.go`, `internal/config/default/types.lua` | regenerated with jjj entries — after every upstream sync run `go run ./cmd/genactions`, never hand-merge |
@@ -39,8 +42,9 @@ jjj is a tracking fork of [idursun/jjui](https://github.com/idursun/jjui) (MIT).
 
 Checklist before pushing the rebase:
 
-- [ ] diff `ui.Model`'s fields and `dispatchScopes()` against `inNormalMode()`
-      — a new upstream modal must be added there or the shell will steal keys
+- [ ] diff `ui.Model`'s fields and `dispatchScopes()` against `noModalOpen()`
+      (which `inNormalMode()` and `Core.InNormalMode` wrap) — a new upstream
+      modal must be added there or the shell will steal keys and clicks
       inside it.
 
 ## Key collisions and forced settings
@@ -50,7 +54,9 @@ panel's scope comes first, then `jjj.shell` (LeakAll, Global), then upstream's
 scopes. Collisions resolved by order: `tab`/`shift+tab` (upstream `ui.focus_next_pane`,
 and `revisions.details` `tab`) and digits are claimed by jjj while no upstream
 operation is open; inside Files, `tab` is bound in `jjj.files` because the
-details scope sits between it and `jjj.shell`.
+details scope sits between it and `jjj.shell`; inside Bookmarks, upstream's
+`bookmark_pane` binds `tab` to `ui.focus_next_pane`, and `jjj.shell` handles
+that intent (cycle to the next panel) before `ui`'s no-op handler.
 
 `shell.Attach` forces `config.Current.Revisions.LogBatching = true`: journal
 mode is delivered entirely through the streaming row source, and

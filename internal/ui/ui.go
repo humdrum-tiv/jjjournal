@@ -103,6 +103,10 @@ type Core struct {
 	// RenderMain draws the revisions list with its split content (preview,
 	// bookmark pane) into box, exactly as the default layout does.
 	RenderMain func(box layout.Box)
+	// InNormalMode reports whether no modal, overlay, text input, split-pane
+	// focus or revision operation is open (inNormalMode without the
+	// pending-key-sequence clause). jjj gates its clicks on it.
+	InNormalMode func() bool
 }
 
 // WindowTitlePrefix is the leading part of the terminal window title.
@@ -122,6 +126,8 @@ func (m *Model) core() Core {
 		Revset:     m.revsetModel,
 		Status:     m.status,
 		RenderMain: func(box layout.Box) { m.renderSplit(m.revisions, box) },
+
+		InNormalMode: m.noModalOpen, // jjj
 	}
 }
 
@@ -129,8 +135,16 @@ func (m *Model) core() Core {
 // Extension: nothing modal is open, no key sequence is pending, and no text
 // input or revision operation is active.
 func (m *Model) inNormalMode() bool {
+	return len(m.sequenceHelp) == 0 && m.noModalOpen()
+}
+
+// jjj: noModalOpen is inNormalMode without the pending-key-sequence clause.
+// It gates the Extension's scopes (dispatchScopes) and is exposed as
+// Core.InNormalMode. A pending sequence must not change the scope set:
+// dispatchScopes is re-evaluated for every key, and dropping the
+// Extension's scopes mid-sequence would resolve the continuation elsewhere.
+func (m *Model) noModalOpen() bool {
 	return m.stacked == nil && m.diff == nil && m.oplog == nil && m.password == nil &&
-		len(m.sequenceHelp) == 0 &&
 		!m.revsetModel.IsEditing() && !m.status.IsFocused() &&
 		!m.splitContainer.ContentFocused() &&
 		m.revisions.InNormalMode() && !m.revisions.HasQuickSearch()
@@ -616,7 +630,7 @@ func (m *Model) dispatchScopes() []common.Scope {
 		// jjj: Extension scopes sit just inside the revisions scopes, so a
 		// focused shell panel can claim keys (and block revisions with
 		// LeakGlobal) while modals above still win.
-		if provider, ok := m.ext.(common.ScopeProvider); ok {
+		if provider, ok := m.ext.(common.ScopeProvider); ok && m.noModalOpen() {
 			scopes = append(scopes, provider.Scopes()...)
 		}
 		scopes = append(scopes, m.splitScopes(m.revisions.Scopes())...)

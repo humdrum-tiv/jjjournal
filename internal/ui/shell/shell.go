@@ -16,11 +16,13 @@ import (
 	"github.com/idursun/jjui/internal/ui/actions"
 	"github.com/idursun/jjui/internal/ui/bookmarkpane"
 	"github.com/idursun/jjui/internal/ui/common"
+	"github.com/idursun/jjui/internal/ui/confirmation"
 	appContext "github.com/idursun/jjui/internal/ui/context"
 	"github.com/idursun/jjui/internal/ui/files"
 	"github.com/idursun/jjui/internal/ui/intents"
 	"github.com/idursun/jjui/internal/ui/layout"
 	"github.com/idursun/jjui/internal/ui/notes"
+	bookmarkop "github.com/idursun/jjui/internal/ui/operations/bookmark"
 	"github.com/idursun/jjui/internal/ui/operations/details"
 	"github.com/idursun/jjui/internal/ui/preview"
 	"github.com/idursun/jjui/internal/ui/render"
@@ -49,9 +51,20 @@ type Shell struct {
 	zoom   Zoom
 	detail *preview.Model // also driven directly by Files (annotate)
 	h      handler
-	// normalMode reports whether no upstream operation, modal or quick
-	// search is open on the revisions list; tests replace it.
+	// normalMode reports whether no upstream modal, overlay, text input,
+	// split-pane focus or revision operation is open (Core.InNormalMode);
+	// tests replace it.
 	normalMode func() bool
+	// width, height: the last window size; zero until the first
+	// tea.WindowSizeMsg. Focus and the Files load use the layout they give.
+	width, height int
+	// click is the last mouse click; upstream's click messages carry no
+	// position, so it tells a click in a jjj panel from one in upstream's
+	// inline details or split pane.
+	click tea.Mouse
+	// moveFromBookmarks: the pending bookmark move began in Bookmarks, so
+	// cancelling it returns there.
+	moveFromBookmarks bool
 	// detailFile, while Detail is focused, keeps Detail on a file diff
 	// opened from Files (enter) instead of the selected revision.
 	detailFile *common.SelectedFile
@@ -77,7 +90,13 @@ func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {
 	s := &Shell{ctx: ctx, cfg: cfg, panels: map[PanelID]panel{}, focus: PanelJournal, detail: preview.New(ctx)}
 	s.h = handler{s}
 	s.normalMode = func() bool {
-		return s.hasCore && s.core.Revisions.InNormalMode() && !s.core.Revisions.HasQuickSearch()
+		if !s.hasCore {
+			return false
+		}
+		if s.core.InNormalMode != nil {
+			return s.core.InNormalMode()
+		}
+		return s.core.Revisions.InNormalMode() && !s.core.Revisions.HasQuickSearch()
 	}
 	s.journalMode.Store(cfg.Journal.Enabled)
 	status := statuspanel.New(ctx, func() string {
@@ -144,8 +163,9 @@ func (s *Shell) register(id PanelID, p panel) { s.panels[id] = p }
 
 func (s *Shell) Init() tea.Cmd {
 	var cmds []tea.Cmd
+	present := s.present()
 	for _, id := range Order {
-		if p, ok := s.panels[id]; ok {
+		if p, ok := s.panels[id]; ok && present[id] {
 			cmds = append(cmds, p.init())
 		}
 	}
@@ -166,10 +186,22 @@ func (s *Shell) present() map[PanelID]bool {
 	return out
 }
 
-func (s *Shell) setFocus(id PanelID) {
-	if !s.present()[id] {
-		return
+// setFocus moves focus to a focusable panel. It refuses (false) while the
+// focused panel is editing, so a confirmation or filter is never left open
+// behind another panel where a later click could fire it.
+func (s *Shell) setFocus(id PanelID) bool {
+	if !s.focusable()[id] {
+		return false
 	}
+	if p := s.panels[s.focus]; id != s.focus && p != nil && p.editing() {
+		return false
+	}
+	s.moveFocus(id)
+	return true
+}
+
+// moveFocus moves focus unconditionally.
+func (s *Shell) moveFocus(id PanelID) {
 	if id != s.focus {
 		s.zoom = ZoomNone
 	}
@@ -180,6 +212,95 @@ func (s *Shell) setFocus(id PanelID) {
 	for pid, p := range s.panels {
 		p.setFocused(pid == id)
 	}
+}
+
+// drawable mirrors drawPanel's minimum outer size.
+func drawable(b layout.Box) bool { return b.R.Dx() >= 4 && b.R.Dy() >= 3 }
+
+// arrange is the layout for a full-window box: the panel boxes, and whether
+// the shell draws at all (narrow mode with Journal focused draws the stock
+// layout). Render, focus and the Files load all use it.
+func (s *Shell) arrange(box layout.Box, focus PanelID, zoom Zoom) (Layout, bool) {
+	content, _ := box.CutBottom(1)
+	if box.R.Dx() < s.cfg.Shell.NarrowColumns {
+		if focus == PanelJournal {
+			return nil, false
+		}
+		return Layout{focus: content}, true
+	}
+	return Compute(content, Params{
+		LeftWidth: s.cfg.Shell.LeftWidth,
+		NotesRows: s.cfg.Shell.NotesRows,
+		Focus:     focus,
+		Zoom:      zoom,
+		Present:   s.present(),
+	}), true
+}
+
+func (s *Shell) window() (layout.Box, bool) {
+	if s.width <= 0 || s.height <= 0 {
+		return layout.Box{}, false
+	}
+	return layout.NewBox(layout.Rect(0, 0, s.width, s.height)), true
+}
+
+// focusable: present panels that would get a drawable box if focused
+// (Notes with notes_rows = 0 or a short right column, cramped accordion
+// panels do not). Journal always qualifies; before the first window size
+// every present panel does.
+func (s *Shell) focusable() map[PanelID]bool {
+	present := s.present()
+	win, ok := s.window()
+	if !ok {
+		return present
+	}
+	out := map[PanelID]bool{PanelJournal: true}
+	for id := range present {
+		lay, _ := s.arrange(win, id, ZoomNone)
+		if b, ok := lay[id]; ok && drawable(b) {
+			out[id] = true
+		}
+	}
+	return out
+}
+
+// drawn: the panels with a drawable box this frame; every present panel
+// before the first window size.
+func (s *Shell) drawn() map[PanelID]bool {
+	win, ok := s.window()
+	if !ok {
+		return s.present()
+	}
+	lay, _ := s.arrange(win, s.focus, s.zoom)
+	out := map[PanelID]bool{}
+	for id, b := range lay {
+		if drawable(b) {
+			out[id] = true
+		}
+	}
+	return out
+}
+
+// syncVisibility tells Files whether it is drawn; a load deferred while it
+// was not runs when it becomes drawn.
+func (s *Shell) syncVisibility() tea.Cmd {
+	fp, ok := s.panels[PanelFiles].(*filesPanel)
+	if !ok {
+		return nil
+	}
+	return fp.m.SetVisible(s.drawn()[PanelFiles])
+}
+
+// clickIn reports whether the last click fell inside panel id's box.
+func (s *Shell) clickIn(id PanelID) bool {
+	win, ok := s.window()
+	if !ok {
+		return false
+	}
+	lay, shown := s.arrange(win, s.focus, s.zoom)
+	b, inLay := lay[id]
+	return shown && inLay && drawable(b) && s.click.X >= b.R.Min.X && s.click.X < b.R.Max.X &&
+		s.click.Y >= b.R.Min.Y && s.click.Y < b.R.Max.Y
 }
 
 // Scopes: the focused panel's scopes (innermost first), then jjj.shell,
@@ -219,7 +340,12 @@ func (s *Shell) handleIntent(intent intents.Intent) (tea.Cmd, bool) {
 		s.setFocus(PanelID(it.Panel))
 		return nil, true
 	case intents.ShellCyclePanel:
-		s.setFocus(Cycle(s.present(), s.focus, it.Delta))
+		s.setFocus(Cycle(s.focusable(), s.focus, it.Delta))
+		return nil, true
+	case intents.FocusNextPane:
+		// upstream's bookmark_pane binds tab to ui.focus_next_pane, which
+		// routes through jjj.shell before ui's no-op handler.
+		s.setFocus(Cycle(s.focusable(), s.focus, 1))
 		return nil, true
 	case intents.ShellZoom:
 		s.zoom = s.zoom.Step(it.Delta)
@@ -256,40 +382,90 @@ func (s *Shell) handleIntent(intent intents.Intent) (tea.Cmd, bool) {
 }
 
 // Update handles panel clicks and focus-returning closes, then forwards
-// every message that is neither input nor an intent to all panels. Intents
-// travelling as messages must not reach hosted upstream models, which would
-// act on them (a Cancel closing a confirmation, say).
+// every message that is neither input nor an intent to the present panels.
+// Intents travelling as messages must not reach hosted upstream models,
+// which would act on them (a Cancel closing a confirmation, say).
 func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
-	switch msg.(type) {
+	cmd, handled := s.update(msg)
+	return tea.Batch(cmd, s.syncVisibility()), handled
+}
+
+func (s *Shell) update(msg tea.Msg) (tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.width, s.height = msg.Width, msg.Height
+		if !s.focusable()[s.focus] {
+			s.moveFocus(PanelJournal)
+		}
+	case tea.MouseClickMsg:
+		s.click = msg.Mouse()
+		return nil, false
 	case focusPanelMsg:
-		s.setFocus(msg.(focusPanelMsg).id)
+		s.setFocus(msg.id)
 		return nil, true
 	case revisions.PaneClickedMsg, revisions.ItemClickedMsg:
-		s.setFocus(PanelJournal) // let revisions handle the click too
-		return nil, false
+		if !s.setFocus(PanelJournal) {
+			return nil, true // a panel is editing: the click must not move the cursor under it
+		}
+		return nil, false // let revisions handle the click too
 	case intents.OpenSquash:
 		// upstream file-details (hosted in Files) starts a squash on the
 		// revisions list; follow it there so its keys and focus line up.
 		s.setFocus(PanelJournal)
 		return nil, false
 	case details.FileClickedMsg:
-		s.setFocus(PanelFiles)
+		// only a click inside the Files panel; one in upstream's inline
+		// details (l) indexes a different list and stays upstream's.
+		if !s.normalMode() || !s.clickIn(PanelFiles) {
+			return nil, false
+		}
+		if !s.setFocus(PanelFiles) {
+			return nil, true
+		}
 		return s.panels[PanelFiles].update(msg), true
 	case files.DetailContentMsg:
-		s.detail.SetContent(msg.(files.DetailContentMsg).Content)
+		s.detail.SetContent(msg.Content)
 		return nil, true
 	case bookmarkpane.PaneClickedMsg, bookmarkpane.ItemClickedMsg, bookmarkpane.RemoteClickedMsg:
-		s.setFocus(PanelBookmarks)
+		// likewise, a click in upstream's split bookmark pane (b) stays upstream's.
+		if !s.normalMode() || !s.clickIn(PanelBookmarks) {
+			return nil, false
+		}
+		if !s.setFocus(PanelBookmarks) {
+			return nil, true
+		}
 		return s.panels[PanelBookmarks].update(msg), true
-	case bookmarkpane.RevealRevisionMsg, bookmarkpane.BeginMoveBookmarkMsg, bookmarkpane.BeginCreateBookmarkMsg:
+	case bookmarkpane.BeginMoveBookmarkMsg:
+		s.moveFromBookmarks = s.focus == PanelBookmarks
+		s.setFocus(PanelJournal) // upstream starts the move on the revisions list
+		return nil, false
+	case bookmarkop.MoveBookmarkCancelledMsg:
+		if s.moveFromBookmarks {
+			s.setFocus(PanelBookmarks)
+		}
+		s.moveFromBookmarks = false
+		return nil, false
+	case bookmarkpane.RevealRevisionMsg, bookmarkpane.BeginCreateBookmarkMsg:
 		// upstream (ui.handleSplitMsg) reveals the revision or starts the
-		// move/create operation on the revisions list; follow it there.
+		// create operation on the revisions list; follow it there.
 		s.setFocus(PanelJournal)
+		return nil, false
+	case confirmation.SelectOptionMsg, confirmation.CloseMsg:
+		// a confirmation belongs to the focused panel (focus cannot leave a
+		// panel while it is editing); never fire one left in another.
+		if p, ok := s.panels[s.focus]; ok && s.present()[s.focus] {
+			return p.update(msg), false
+		}
 		return nil, false
 	case common.CloseViewMsg:
 		// esc in Files or Bookmarks (upstream emits Close) returns to Journal.
+		// Upstream's split "Yes"/"Interactive" and restore "Interactive" also
+		// close with common.Close rather than confirmation.Close: a hosted
+		// model survives the close, so clear its confirmation first.
 		if s.focus == PanelFiles || s.focus == PanelBookmarks {
+			cmd := s.panels[s.focus].update(confirmation.CloseMsg{})
 			s.setFocus(PanelJournal)
+			return cmd, false
 		}
 		return nil, false
 	}
@@ -300,8 +476,9 @@ func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
 		return nil, false
 	}
 	var cmds []tea.Cmd
+	present := s.present()
 	for _, id := range Order {
-		if p, ok := s.panels[id]; ok {
+		if p, ok := s.panels[id]; ok && present[id] {
 			cmds = append(cmds, p.update(msg))
 		}
 	}
@@ -320,27 +497,16 @@ func (s *Shell) Render(dl *render.DisplayContext, box layout.Box, core ui.Core) 
 	if !s.cfg.Shell.Enabled {
 		return false
 	}
-	content, statusLine := box.CutBottom(1)
-	if box.R.Dx() < s.cfg.Shell.NarrowColumns {
-		if s.focus == PanelJournal {
-			return false
-		}
-		s.drawPanel(dl, content, s.focus)
-		core.Status.ViewRect(dl, statusLine)
-		return true
+	lay, shown := s.arrange(box, s.focus, s.zoom)
+	if !shown {
+		return false
 	}
-	lay := Compute(content, Params{
-		LeftWidth: s.cfg.Shell.LeftWidth,
-		NotesRows: s.cfg.Shell.NotesRows,
-		Focus:     s.focus,
-		Zoom:      s.zoom,
-		Present:   s.present(),
-	})
 	for _, id := range Order {
 		if b, ok := lay[id]; ok {
 			s.drawPanel(dl, b, id)
 		}
 	}
+	_, statusLine := box.CutBottom(1)
 	core.Status.ViewRect(dl, statusLine)
 	return true
 }

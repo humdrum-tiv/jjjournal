@@ -74,3 +74,43 @@ func TestFileIntentsWithoutFilesAreConsumed(t *testing.T) {
 		require.Nil(t, cmd, "%T", it)
 	}
 }
+
+func TestHiddenFilesDefersLoadUntilVisible(t *testing.T) {
+	runner := test.NewTestCommandRunner(t) // no expectations yet: any jj call fails
+	m := New(test.NewTestContext(runner), func() bool { return true })
+	require.Nil(t, m.SetVisible(false))
+
+	m.Update(common.SelectionChangedMsg{Item: revA})
+	require.Nil(t, m.Update(revisionMsg{rev: revA}))
+	require.Nil(t, m.Update(common.RefreshMsg{}))
+	require.Nil(t, m.op, "nothing loaded while hidden")
+
+	runner.Expect(jj.Snapshot())
+	runner.Expect(jj.Status("aaa")).SetOutput([]byte("false $\nM a.go\n"))
+	show := m.SetVisible(true)
+	require.NotNil(t, show)
+	if cmd := m.Update(show()); cmd != nil {
+		m.Update(cmd())
+	}
+	runner.Verify()
+	_, ok := m.Current()
+	require.True(t, ok)
+	require.Nil(t, m.SetVisible(true), "the deferred load runs once")
+}
+
+func TestHiddenRefreshReloadsOnShow(t *testing.T) {
+	runner := test.NewTestCommandRunner(t)
+	runner.Expect(jj.Snapshot())
+	runner.Expect(jj.Status("aaa")).SetOutput([]byte("false $\nM a.go\n"))
+	m := New(test.NewTestContext(runner), func() bool { return true })
+	m.Update(common.SelectionChangedMsg{Item: revA})
+	if cmd := m.Update(revisionMsg{rev: revA}); cmd != nil {
+		m.Update(cmd())
+	}
+	m.SetVisible(false)
+	require.Nil(t, m.Update(common.RefreshMsg{}), "refresh deferred")
+	show := m.SetVisible(true)
+	require.NotNil(t, show)
+	require.NotNil(t, m.Update(show()), "same revision: refreshed on show")
+	runner.Verify()
+}

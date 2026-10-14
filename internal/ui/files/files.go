@@ -28,6 +28,9 @@ const (
 // revisionMsg is the debounced "load this revision" request.
 type revisionMsg struct{ rev common.SelectedRevision }
 
+// showMsg runs a load deferred while the panel was not drawn.
+type showMsg struct{}
+
 // DetailContentMsg asks the shell to show Content in Detail (annotate).
 type DetailContentMsg struct{ Content string }
 
@@ -36,10 +39,26 @@ type Model struct {
 	isWorkingCopy func() bool // is the Journal-selected revision @?
 	op            *details.Operation
 	rev           common.SelectedRevision // latest requested
+	// hidden: the panel is not drawn (narrow mode, zoom). Loads are
+	// synchronous jj calls on the UI loop, so they wait (dirty) until the
+	// panel is drawn again; see SetVisible.
+	hidden bool
+	dirty  bool
 }
 
 func New(ctx *appContext.MainContext, isWorkingCopy func() bool) *Model {
 	return &Model{ctx: ctx, isWorkingCopy: isWorkingCopy}
+}
+
+// SetVisible reports whether the panel is drawn. Becoming visible with a
+// deferred load pending returns the command that runs it, once.
+func (m *Model) SetVisible(visible bool) tea.Cmd {
+	m.hidden = !visible
+	if !visible || !m.dirty {
+		return nil
+	}
+	m.dirty = false
+	return func() tea.Msg { return showMsg{} }
 }
 
 func (m *Model) Update(msg tea.Msg) tea.Cmd {
@@ -55,17 +74,43 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		if msg.rev != m.rev {
 			return nil
 		}
-		commit := &jj.Commit{ChangeId: msg.rev.ChangeId, CommitId: msg.rev.CommitId}
-		if m.op == nil {
-			m.op = details.NewOperation(m.ctx, commit)
-			return m.op.Init()
+		if m.hidden {
+			m.dirty = true
+			return nil
 		}
-		return m.op.Update(common.SelectionChangedMsg{Item: msg.rev})
+		return m.load()
+	case showMsg:
+		if m.hidden {
+			m.dirty = true
+			return nil
+		}
+		if m.op != nil && m.op.Current != nil && m.op.Current.CommitId == m.rev.CommitId && m.op.Current.ChangeId == m.rev.ChangeId {
+			return m.op.Update(common.RefreshMsg{})
+		}
+		return m.load()
+	case common.RefreshMsg:
+		if m.op != nil && m.hidden {
+			m.dirty = true
+			return nil
+		}
 	}
 	if m.op == nil {
 		return nil
 	}
 	return m.op.Update(msg)
+}
+
+// load shows the latest requested revision (a no-op before any selection).
+func (m *Model) load() tea.Cmd {
+	if m.rev == (common.SelectedRevision{}) {
+		return nil
+	}
+	commit := &jj.Commit{ChangeId: m.rev.ChangeId, CommitId: m.rev.CommitId}
+	if m.op == nil {
+		m.op = details.NewOperation(m.ctx, commit)
+		return m.op.Init()
+	}
+	return m.op.Update(common.SelectionChangedMsg{Item: m.rev})
 }
 
 // Scopes: jjj.files first (LeakAll, so the details scopes behind it stay

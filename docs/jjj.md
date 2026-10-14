@@ -12,11 +12,21 @@ still builds from the same tree (`go build ./cmd/jjui`) and is untouched.
 
 - Opens on the whole visible history (`all()`), newest first, with a header
   per day and per ISO week. `J` flips to jjui's graph. `{` / `}` jump days.
-- Three panels: `[1] Status` (working copy, nearest bookmark ↑/↓ against its
-  remote, fetch age, mode + revset), `[4] Journal` (every jjui key works here),
-  `[0] Detail` (`jj show --stat --git`; `j`/`k`, `ctrl+d`/`ctrl+u`, `pgup`/`pgdown`
-  scroll it when focused). Digits and `tab` move focus; click a panel to focus it.
-- Under 120 columns it falls back to jjui's single list.
+- Six panels. Left column: `[1] Status` (working copy, nearest bookmark ↑/↓
+  against its remote, fetch age, mode + revset), `[2] Files` (the files changed
+  in the selected revision, with upstream's file-details keys; `enter` shows a
+  file's diff in Detail), `[3] Bookmarks` (upstream's bookmark pane, kept open,
+  plus `a`/`A` advance), `[4] Journal` (every jjui key works here). Right
+  column: `[0] Detail` (`jj show --stat --git`, or the file diff opened from
+  Files; scrollable when focused) above `[6] Notes` (the selected revision's
+  full description; `enter` describes it inline).
+- The left column is an accordion: the focused panel grows. `+` / `_` zoom
+  the focused panel to its column, then the whole screen. Digits and `tab`
+  move focus; click a panel to focus it. Focus stays put while a panel has a
+  confirmation or filter open. `[shell] hidden = ["files", ...]` removes
+  Status, Files, Bookmarks or Notes.
+- Under 120 columns it shows jjui's single list while Journal is focused and
+  the focused panel full-screen otherwise.
 
 ## Keys
 
