@@ -206,3 +206,11 @@ func (e *editingPanel) editing() bool { return e.isEditing }
 func (e *editingPanel) scopes() []common.Scope {
 	return []common.Scope{{Name: "fake.filter", Leak: common.LeakNone, Handler: handler{}}}
 }
+
+func TestOpenSquashFromFilesFollowsToJournal(t *testing.T) {
+	s := newTestShell()
+	s.setFocus(PanelFiles)
+	_, handled := s.Update(intents.OpenSquash{})
+	require.False(t, handled)
+	require.Equal(t, PanelJournal, s.focus)
+}

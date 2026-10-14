@@ -265,6 +265,11 @@ func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
 	case revisions.PaneClickedMsg, revisions.ItemClickedMsg:
 		s.setFocus(PanelJournal) // let revisions handle the click too
 		return nil, false
+	case intents.OpenSquash:
+		// upstream file-details (hosted in Files) starts a squash on the
+		// revisions list; follow it there so its keys and focus line up.
+		s.setFocus(PanelJournal)
+		return nil, false
 	case details.FileClickedMsg:
 		s.setFocus(PanelFiles)
 		return s.panels[PanelFiles].update(msg), true
