@@ -4,6 +4,7 @@ title: 'P2b: command palette, hint bar, run kinds and flows'
 status: Backlog
 assignee: []
 created_date: '2026-10-14 03:17'
+updated_date: '2026-10-14 13:57'
 labels:
   - feature
 dependencies: []
@@ -25,3 +26,9 @@ Spec docs/superpowers/specs/2026-10-13-jjj-functional-design.md §5. internal/jj
 - [ ] #3 arrange and converge run attached to the terminal and refresh on return
 - [ ] #4 make check green
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+From the P2a final review: the Status panel's divergent-change count (spec 4.5) was not built in P2a. Build it together with the divergence marker.
+<!-- SECTION:NOTES:END -->

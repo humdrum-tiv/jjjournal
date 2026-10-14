@@ -1,10 +1,10 @@
 ---
 id: TASK-012.01
 title: 'P2a: scoped-key seam, Files/Bookmarks/Notes panels, accordion and zoom'
-status: Done
+status: In progress
 assignee: []
 created_date: '2026-10-14 03:17'
-updated_date: '2026-10-14 04:39'
+updated_date: '2026-10-14 13:57'
 labels:
   - feature
 dependencies: []
