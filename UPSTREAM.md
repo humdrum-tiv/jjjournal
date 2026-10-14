@@ -20,7 +20,7 @@ jjj is a tracking fork of [idursun/jjui](https://github.com/idursun/jjui) (MIT).
 |---|---|
 | `internal/config/loader.go` | identity variables (`AppDirName`, `EnvConfigDirName`, `RepoConfigDirName`) replace the jjui literals |
 | `.gitignore` | ignore `/jjj` and `/bin/` |
-| `internal/ui/ui.go` | `Extension` hook (`Extension`, `Core`, `NewWithExtension`, `inNormalMode`, `WindowTitlePrefix`) and its three call sites in `Init`/`Update`/`View`; `Update`'s return value became a named result (`cmd tea.Cmd`) with a deferred `cmd = tea.Batch(extCmd, cmd)` so the extension's command is folded into every return path, not just one |
+| `internal/ui/ui.go` | `Extension` hook (`Extension`, `Core`, `NewWithExtension`, `inNormalMode`, `WindowTitlePrefix`) and its three call sites in `Init`/`Update`/`View`; `Update`'s return value became a named result (`cmd tea.Cmd`) with a deferred `cmd = tea.Batch(extCmd, cmd)` so the extension's command is folded into every return path, not just one. P2a: an extension implementing `common.ScopeProvider` has its scopes inserted before the revisions scopes in `dispatchScopes` (revisions-primary branch only), and one implementing `common.SelectionProvider` is consulted in `selectionProviders` before revisions |
 | `internal/jj/commands.go` | `LogTemplate` extracted from `Log` (pure extraction) so other row sources emit parser-compatible output |
 | `internal/ui/revisions/revisions.go` | `RowSource` interface, `RowSourceFactory`, `DefaultRowSource`, `SetRowSourceFactory`; `streamer` fields typed as the interface |
 

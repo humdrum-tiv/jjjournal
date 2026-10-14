@@ -172,6 +172,11 @@ func (m *Model) selectionProviders() []common.SelectionProvider {
 	if m.oplog != nil {
 		providers = append(providers, m.oplog)
 	}
+	// jjj: an Extension may contribute the highlighted item (e.g. a file in
+	// a shell panel); it ranks below modal views and above the revisions list.
+	if provider, ok := m.ext.(common.SelectionProvider); ok {
+		providers = append(providers, provider)
+	}
 	if m.revisions != nil {
 		providers = append(providers, m.revisions)
 	}
@@ -608,6 +613,12 @@ func (m *Model) dispatchScopes() []common.Scope {
 	} else if m.oplog != nil {
 		scopes = append(scopes, m.splitScopes(m.oplog.Scopes())...)
 	} else {
+		// jjj: Extension scopes sit just inside the revisions scopes, so a
+		// focused shell panel can claim keys (and block revisions with
+		// LeakGlobal) while modals above still win.
+		if provider, ok := m.ext.(common.ScopeProvider); ok {
+			scopes = append(scopes, provider.Scopes()...)
+		}
 		scopes = append(scopes, m.splitScopes(m.revisions.Scopes())...)
 	}
 
