@@ -5,6 +5,7 @@ import (
 
 	"github.com/idursun/jjui/internal/ui/actions"
 	"github.com/idursun/jjui/internal/ui/common"
+	"github.com/idursun/jjui/internal/ui/files"
 	"github.com/idursun/jjui/internal/ui/intents"
 	"github.com/idursun/jjui/internal/ui/layout"
 	"github.com/idursun/jjui/internal/ui/notes"
@@ -159,4 +160,22 @@ func (p *notesPanel) handleIntent(intent intents.Intent) (tea.Cmd, bool) {
 		return cmd, true
 	}
 	return nil, false
+}
+
+// filesPanel hosts the Files model (upstream's file-details operation).
+type filesPanel struct {
+	s *Shell
+	m *files.Model
+}
+
+func (p *filesPanel) title() string                                    { return "Files" }
+func (p *filesPanel) init() tea.Cmd                                    { return nil }
+func (p *filesPanel) update(msg tea.Msg) tea.Cmd                       { return p.m.Update(msg) }
+func (p *filesPanel) setFocused(bool)                                  {}
+func (p *filesPanel) editing() bool                                    { return p.m.IsEditing() }
+func (p *filesPanel) draw(dl *render.DisplayContext, inner layout.Box) { p.m.ViewRect(dl, inner) }
+func (p *filesPanel) scopes() []common.Scope                           { return p.m.Scopes(p.s.h) }
+func (p *filesPanel) selection() common.SelectionSnapshot              { return p.m.Selection() }
+func (p *filesPanel) handleIntent(intent intents.Intent) (tea.Cmd, bool) {
+	return p.m.HandleIntent(intent)
 }

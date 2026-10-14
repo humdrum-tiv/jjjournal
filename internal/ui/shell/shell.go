@@ -16,9 +16,11 @@ import (
 	"github.com/idursun/jjui/internal/ui/actions"
 	"github.com/idursun/jjui/internal/ui/common"
 	appContext "github.com/idursun/jjui/internal/ui/context"
+	"github.com/idursun/jjui/internal/ui/files"
 	"github.com/idursun/jjui/internal/ui/intents"
 	"github.com/idursun/jjui/internal/ui/layout"
 	"github.com/idursun/jjui/internal/ui/notes"
+	"github.com/idursun/jjui/internal/ui/operations/details"
 	"github.com/idursun/jjui/internal/ui/preview"
 	"github.com/idursun/jjui/internal/ui/render"
 	"github.com/idursun/jjui/internal/ui/revisions"
@@ -87,6 +89,13 @@ func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {
 	s.register(PanelJournal, &journalPanel{s: s})
 	s.register(PanelDetail, &detailPanel{m: s.detail, h: s.h})
 	s.register(PanelNotes, &notesPanel{s: s, m: notes.New(ctx)})
+	s.register(PanelFiles, &filesPanel{s: s, m: files.New(ctx, func() bool {
+		if !s.hasCore {
+			return false
+		}
+		rev := s.core.Revisions.SelectedRevision()
+		return rev != nil && rev.IsWorkingCopy
+	})})
 	return s
 }
 
@@ -227,6 +236,16 @@ func (s *Shell) handleIntent(intent intents.Intent) (tea.Cmd, bool) {
 			}
 		}
 		return nil, true
+	case intents.FilesShowDiff:
+		fp, ok := s.panels[PanelFiles].(*filesPanel)
+		if !ok {
+			return nil, true
+		}
+		if f, ok := fp.m.Current(); ok {
+			s.setFocus(PanelDetail)
+			s.detailFile = &f
+		}
+		return nil, true
 	}
 	if ip, ok := s.panels[s.focus].(intentPanel); ok {
 		return ip.handleIntent(intent)
@@ -246,6 +265,12 @@ func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
 	case revisions.PaneClickedMsg, revisions.ItemClickedMsg:
 		s.setFocus(PanelJournal) // let revisions handle the click too
 		return nil, false
+	case details.FileClickedMsg:
+		s.setFocus(PanelFiles)
+		return s.panels[PanelFiles].update(msg), true
+	case files.DetailContentMsg:
+		s.detail.SetContent(msg.(files.DetailContentMsg).Content)
+		return nil, true
 	case common.CloseViewMsg:
 		// esc in Files or Bookmarks (upstream emits Close) returns to Journal.
 		if s.focus == PanelFiles || s.focus == PanelBookmarks {

@@ -176,3 +176,33 @@ func TestNotesRegisteredAndScoped(t *testing.T) {
 	_, handled = s.handleIntent(intents.NotesDescribe{})
 	require.True(t, handled, "consumed even without a core")
 }
+
+func TestScopesDropShellWhileEditing(t *testing.T) {
+	s := newTestShell()
+	rec := &editingPanel{}
+	s.register(PanelFiles, rec)
+	s.setFocus(PanelFiles)
+	rec.isEditing = true
+	for _, sc := range s.Scopes() {
+		require.NotEqual(t, actions.ScopeJjjShell, string(sc.Name), "shell keys must not steal input")
+	}
+}
+
+func TestFilesFocusedBlocksRevisions(t *testing.T) {
+	s := newTestShell()
+	s.setFocus(PanelFiles)
+	scopes := s.Scopes()
+	require.Equal(t, actions.ScopeJjjFiles, string(scopes[0].Name))
+	require.Equal(t, common.LeakGlobal, scopes[0].Leak)
+	require.Equal(t, actions.ScopeJjjShell, string(scopes[len(scopes)-1].Name))
+}
+
+type editingPanel struct {
+	recordingPanel
+	isEditing bool
+}
+
+func (e *editingPanel) editing() bool { return e.isEditing }
+func (e *editingPanel) scopes() []common.Scope {
+	return []common.Scope{{Name: "fake.filter", Leak: common.LeakNone, Handler: handler{}}}
+}
