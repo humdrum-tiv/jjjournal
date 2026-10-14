@@ -214,3 +214,28 @@ func TestOpenSquashFromFilesFollowsToJournal(t *testing.T) {
 	require.False(t, handled)
 	require.Equal(t, PanelJournal, s.focus)
 }
+
+func TestBookmarksFocusedScopes(t *testing.T) {
+	s := newTestShell()
+	s.setFocus(PanelBookmarks)
+	got := names(s.Scopes())
+	require.Equal(t, actions.ScopeJjjBookmarks, string(got[0]))
+	require.Equal(t, actions.ScopeBookmarkPane, string(got[1]))
+	require.Equal(t, actions.ScopeJjjShell, string(got[len(got)-1]))
+}
+
+func TestBookmarksScopesWhileEditing(t *testing.T) {
+	s := newTestShell()
+	s.setFocus(PanelBookmarks)
+	bp := s.panels[PanelBookmarks].(*bookmarksPanel)
+	bp.m.HandleIntent(intents.BookmarkPaneOpenFilter{})
+	got := names(s.Scopes())
+	require.Equal(t, []keybindings.ScopeName{actions.ScopeBookmarkPaneFilter}, got)
+}
+
+func TestAdvanceIntentReachesPane(t *testing.T) {
+	s := newTestShell()
+	s.setFocus(PanelBookmarks)
+	_, handled := s.handleIntent(intents.BookmarkPaneAdvance{})
+	require.True(t, handled)
+}

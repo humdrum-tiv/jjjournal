@@ -14,6 +14,7 @@ import (
 	"github.com/idursun/jjui/internal/journal"
 	"github.com/idursun/jjui/internal/ui"
 	"github.com/idursun/jjui/internal/ui/actions"
+	"github.com/idursun/jjui/internal/ui/bookmarkpane"
 	"github.com/idursun/jjui/internal/ui/common"
 	appContext "github.com/idursun/jjui/internal/ui/context"
 	"github.com/idursun/jjui/internal/ui/files"
@@ -96,6 +97,7 @@ func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {
 		rev := s.core.Revisions.SelectedRevision()
 		return rev != nil && rev.IsWorkingCopy
 	})})
+	s.register(PanelBookmarks, &bookmarksPanel{s: s, m: bookmarkpane.New(ctx)})
 	return s
 }
 
@@ -276,6 +278,14 @@ func (s *Shell) Update(msg tea.Msg) (tea.Cmd, bool) {
 	case files.DetailContentMsg:
 		s.detail.SetContent(msg.(files.DetailContentMsg).Content)
 		return nil, true
+	case bookmarkpane.PaneClickedMsg, bookmarkpane.ItemClickedMsg, bookmarkpane.RemoteClickedMsg:
+		s.setFocus(PanelBookmarks)
+		return s.panels[PanelBookmarks].update(msg), true
+	case bookmarkpane.RevealRevisionMsg, bookmarkpane.BeginMoveBookmarkMsg, bookmarkpane.BeginCreateBookmarkMsg:
+		// upstream (ui.handleSplitMsg) reveals the revision or starts the
+		// move/create operation on the revisions list; follow it there.
+		s.setFocus(PanelJournal)
+		return nil, false
 	case common.CloseViewMsg:
 		// esc in Files or Bookmarks (upstream emits Close) returns to Journal.
 		if s.focus == PanelFiles || s.focus == PanelBookmarks {

@@ -26,6 +26,7 @@ jjj is a tracking fork of [idursun/jjui](https://github.com/idursun/jjui) (MIT).
 | `internal/ui/actions/catalog_gen.go`, `internal/ui/actionmeta/builtins_gen.go`, `internal/config/default/types.lua` | regenerated with jjj entries — after every upstream sync run `go run ./cmd/genactions`, never hand-merge |
 | `internal/jj/commands.go` | `LogTemplate` extracted from `Log` (pure extraction) so other row sources emit parser-compatible output |
 | `internal/ui/revisions/revisions.go` | `RowSource` interface, `RowSourceFactory`, `DefaultRowSource`, `SetRowSourceFactory`; `streamer` fields typed as the interface |
+| `internal/ui/bookmarkpane/advance.go` | new file: `Model.Advance` (`jj bookmark advance`, optional push) for the jjj Bookmarks panel; uses the pane's private selection helpers; upstream PR candidate |
 
 ## Sync procedure (manual until P6 scripts it)
 
