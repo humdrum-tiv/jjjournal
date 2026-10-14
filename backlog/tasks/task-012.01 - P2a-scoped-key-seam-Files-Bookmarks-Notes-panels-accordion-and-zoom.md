@@ -1,9 +1,10 @@
 ---
 id: TASK-012.01
 title: 'P2a: scoped-key seam, Files/Bookmarks/Notes panels, accordion and zoom'
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-10-14 03:17'
+updated_date: '2026-10-14 04:39'
 labels:
   - feature
 dependencies: []
@@ -26,3 +27,9 @@ Spec docs/superpowers/specs/2026-10-13-jjj-functional-design.md §3-§4. Extensi
 - [ ] #4 With Files focused, revision keys do not leak
 - [ ] #5 make check green
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+P2a shipped per docs/superpowers/plans/2026-10-13-jjj-p2a-panels.md.
+<!-- SECTION:NOTES:END -->

@@ -18,6 +18,39 @@ still builds from the same tree (`go build ./cmd/jjui`) and is untouched.
   scroll it when focused). Digits and `tab` move focus; click a panel to focus it.
 - Under 120 columns it falls back to jjui's single list.
 
+## Keys
+
+Every jjj key is an action: rebind it in `~/.config/jjj/config.toml` like any
+jjui binding, e.g. `bindings = [{ key = "x", action = "jjj.shell.focus_files", scope = "jjj.shell" }]`.
+Files keeps upstream's file-details keys (space select, r restore, s split,
+S squash, A absorb, d diff, / filter, * revisions touching the file);
+Bookmarks keeps upstream's bookmark-pane keys (c create, m move, d delete,
+r rename, t/u track, P push, F fetch, e edit, n new, s show).
+
+| Group | Key | Action |
+|---|---|---|
+| Shell | `0` `1` `2` `3` `4` `6` | focus Detail, Status, Files, Bookmarks, Journal, Notes |
+| Shell | `tab` / `shift+tab` | next / previous panel |
+| Shell | `+` / `_` | zoom focused panel in / out |
+| Shell | `J` | journal / graph |
+| Shell | `{` / `}` | previous / next day |
+| Shell | `esc` (Status) | back to journal |
+| Detail | `j` `k` `up` `down` | scroll |
+| Detail | `ctrl+d` / `ctrl+u` | half page down / up |
+| Detail | `pgdown` / `pgup` | page down / up |
+| Detail | `esc` | back to journal |
+| Notes | `j` `k` `up` `down` | scroll |
+| Notes | `enter` | describe (inline, on the Journal row) |
+| Notes | `esc` | back to journal |
+| Files | `enter` | diff in Detail |
+| Files | `e` | diffedit |
+| Files | `o` | open in $EDITOR |
+| Files | `b` | annotate |
+| Files | `M` / `shift+m` | resolve |
+| Files | `tab` / `shift+tab` | next / previous panel |
+| Bookmarks | `a` | advance closest bookmark to the selected revision |
+| Bookmarks | `A` / `shift+a` | advance to @ and push |
+
 ## Config
 
 `~/.config/jjj/config.toml`, `JJJ_CONFIG_DIR`, and `<repo>/.jjj/config.toml`;

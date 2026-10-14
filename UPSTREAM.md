@@ -45,12 +45,12 @@ Checklist before pushing the rebase:
 
 ## Key collisions and forced settings
 
-Shell keys are intercepted raw (not through upstream's bindings) while the UI
-is in normal mode: `0` `1` `4`, `tab`, `shift+tab`, `J`, `{`, `}`, and, with
-Detail focused, `j` `k` `up` `down` `ctrl+d` `ctrl+u` `pgup` `pgdown`.
-Upstream's `tab` (split focus) is therefore unreachable in shell mode; the
-Detail panel is the preview. Tracked as a backlog task: make them rebindable
-actions.
+jjj keys are actions in jjj scopes (`internal/jjj/defaults.toml`). The focused
+panel's scope comes first, then `jjj.shell` (LeakAll, Global), then upstream's
+scopes. Collisions resolved by order: `tab`/`shift+tab` (upstream `ui.focus_next_pane`,
+and `revisions.details` `tab`) and digits are claimed by jjj while no upstream
+operation is open; inside Files, `tab` is bound in `jjj.files` because the
+details scope sits between it and `jjj.shell`.
 
 `shell.Attach` forces `config.Current.Revisions.LogBatching = true`: journal
 mode is delivered entirely through the streaming row source, and

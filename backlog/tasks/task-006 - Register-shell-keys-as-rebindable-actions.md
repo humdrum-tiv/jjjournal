@@ -1,10 +1,10 @@
 ---
 id: TASK-006
 title: Register shell keys as rebindable actions
-status: Backlog
+status: Done
 assignee: []
 created_date: '2026-09-05 02:29'
-updated_date: '2026-10-14 03:17'
+updated_date: '2026-10-14 04:39'
 labels:
   - tech-debt
 dependencies: []
@@ -22,4 +22,6 @@ Digits, tab, J, {, } are intercepted raw in shell.HandleKey (Task 3/5 of the P0-
 
 <!-- SECTION:NOTES:BEGIN -->
 Folded into TASK-012 P2a (spec §3.2): shell keys become actions in a shell scope.
+
+Done in TASK-012.01: shell keys are actions in jjj.shell (internal/jjj/defaults.toml).
 <!-- SECTION:NOTES:END -->
