@@ -167,10 +167,10 @@ func (s *Shell) HandleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	}
 	switch key {
 	case "tab":
-		s.setFocus(s.focus.next())
+		s.setFocus(Cycle(s.present(), s.focus, 1))
 		return nil, true
 	case "shift+tab":
-		s.setFocus(s.focus.prev())
+		s.setFocus(Cycle(s.present(), s.focus, -1))
 		return nil, true
 	}
 	if s.focus == PanelDetail {
@@ -199,6 +199,12 @@ func (s *Shell) setFocus(id PanelID) {
 	}
 }
 
+// present is the set of panels this build draws (Task 4 replaces this with
+// the panel registry).
+func (s *Shell) present() map[PanelID]bool {
+	return map[PanelID]bool{PanelStatus: true, PanelJournal: true, PanelDetail: true}
+}
+
 // Render draws the panels. It returns false (stock layout) when the shell is
 // disabled or the terminal is narrower than [shell] narrow_columns.
 func (s *Shell) Render(dl *render.DisplayContext, box layout.Box, core ui.Core) bool {
@@ -209,12 +215,17 @@ func (s *Shell) Render(dl *render.DisplayContext, box layout.Box, core ui.Core) 
 	}
 	s.active = true
 	content, statusLine := box.CutBottom(1)
-	lay := Compute(content, s.cfg.Shell.LeftWidth)
+	lay := Compute(content, Params{
+		LeftWidth: s.cfg.Shell.LeftWidth,
+		NotesRows: s.cfg.Shell.NotesRows,
+		Focus:     s.focus,
+		Present:   s.present(),
+	})
 
-	s.panel(dl, lay.Status, PanelStatus, "Status", func(inner layout.Box) {
+	s.panel(dl, lay[PanelStatus], PanelStatus, "Status", func(inner layout.Box) {
 		s.status.ViewRect(dl, inner)
 	})
-	s.panel(dl, lay.Journal, PanelJournal, "Journal", func(inner layout.Box) {
+	s.panel(dl, lay[PanelJournal], PanelJournal, "Journal", func(inner layout.Box) {
 		rows := inner.V(layout.Fixed(1), layout.Fill(1))
 		if len(rows) < 2 {
 			return
@@ -222,7 +233,7 @@ func (s *Shell) Render(dl *render.DisplayContext, box layout.Box, core ui.Core) 
 		core.Revset.ViewRect(dl, rows[0])
 		core.RenderMain(rows[1])
 	})
-	s.panel(dl, lay.Detail, PanelDetail, "Detail", func(inner layout.Box) {
+	s.panel(dl, lay[PanelDetail], PanelDetail, "Detail", func(inner layout.Box) {
 		s.detail.ViewRect(dl, inner)
 	})
 	core.Status.ViewRect(dl, statusLine)
