@@ -3,6 +3,56 @@
 # here can be overridden there. The row templates live in Go
 # (internal/journal/template.go) and are applied by ApplyDefaults.
 
+# jjj keys. Scope order at runtime: the focused panel's scope, then
+# jjj.shell, then upstream's scopes. Rebind any of these in config.toml.
+bindings = [
+    # shell (global while no upstream operation is open)
+    { key = "0", action = "jjj.shell.focus_detail", scope = "jjj.shell", desc = "focus detail" },
+    { key = "1", action = "jjj.shell.focus_status", scope = "jjj.shell", desc = "focus status" },
+    { key = "2", action = "jjj.shell.focus_files", scope = "jjj.shell", desc = "focus files" },
+    { key = "3", action = "jjj.shell.focus_bookmarks", scope = "jjj.shell", desc = "focus bookmarks" },
+    { key = "4", action = "jjj.shell.focus_journal", scope = "jjj.shell", desc = "focus journal" },
+    { key = "6", action = "jjj.shell.focus_notes", scope = "jjj.shell", desc = "focus notes" },
+    { key = "tab", action = "jjj.shell.next_panel", scope = "jjj.shell", desc = "next panel" },
+    { key = "shift+tab", action = "jjj.shell.prev_panel", scope = "jjj.shell", desc = "previous panel" },
+    { key = "+", action = "jjj.shell.zoom_in", scope = "jjj.shell", desc = "zoom in" },
+    { key = "_", action = "jjj.shell.zoom_out", scope = "jjj.shell", desc = "zoom out" },
+    { key = ["J", "shift+j"], action = "jjj.shell.toggle_journal", scope = "jjj.shell", desc = "journal/graph" },
+    { key = "}", action = "jjj.shell.next_day", scope = "jjj.shell", desc = "next day" },
+    { key = "{", action = "jjj.shell.prev_day", scope = "jjj.shell", desc = "previous day" },
+
+    # detail
+    { key = ["j", "down"], action = "jjj.detail.scroll_down", scope = "jjj.detail", desc = "scroll down" },
+    { key = ["k", "up"], action = "jjj.detail.scroll_up", scope = "jjj.detail", desc = "scroll up" },
+    { key = "ctrl+d", action = "jjj.detail.half_page_down", scope = "jjj.detail", desc = "half page down" },
+    { key = "ctrl+u", action = "jjj.detail.half_page_up", scope = "jjj.detail", desc = "half page up" },
+    { key = "pgdown", action = "jjj.detail.page_down", scope = "jjj.detail", desc = "page down" },
+    { key = "pgup", action = "jjj.detail.page_up", scope = "jjj.detail", desc = "page up" },
+    { key = "esc", action = "jjj.detail.back", scope = "jjj.detail", desc = "back to journal" },
+
+    # notes
+    { key = ["j", "down"], action = "jjj.notes.scroll_down", scope = "jjj.notes", desc = "scroll down" },
+    { key = ["k", "up"], action = "jjj.notes.scroll_up", scope = "jjj.notes", desc = "scroll up" },
+    { key = "enter", action = "jjj.notes.describe", scope = "jjj.notes", desc = "describe" },
+    { key = "esc", action = "jjj.notes.back", scope = "jjj.notes", desc = "back to journal" },
+
+    # status
+    { key = "esc", action = "jjj.status.back", scope = "jjj.status", desc = "back to journal" },
+
+    # files (upstream revisions.details keys also apply: space r s S A d / *)
+    { key = "enter", action = "jjj.files.show_diff", scope = "jjj.files", desc = "diff in detail" },
+    { key = "e", action = "jjj.files.diffedit", scope = "jjj.files", desc = "diffedit" },
+    { key = "o", action = "jjj.files.open_editor", scope = "jjj.files", desc = "open in $EDITOR" },
+    { key = "b", action = "jjj.files.annotate", scope = "jjj.files", desc = "annotate" },
+    { key = ["M", "shift+m"], action = "jjj.files.resolve", scope = "jjj.files", desc = "resolve" },
+    { key = "tab", action = "jjj.files.next_panel", scope = "jjj.files", desc = "next panel" },
+    { key = "shift+tab", action = "jjj.files.prev_panel", scope = "jjj.files", desc = "previous panel" },
+
+    # bookmarks (upstream bookmark_pane keys also apply)
+    { key = "a", action = "jjj.bookmarks.advance", scope = "jjj.bookmarks", desc = "advance" },
+    { key = ["A", "shift+a"], action = "jjj.bookmarks.advance_to_working_copy", scope = "jjj.bookmarks", desc = "advance to @ + push" },
+]
+
 [revisions]
 revset = "all()"
 

@@ -19,6 +19,12 @@ const (
 	ScopeGit                      = "git"
 	ScopeHelp                     = "help"
 	ScopeInput                    = "input"
+	ScopeJjjBookmarks             = "jjj.bookmarks"
+	ScopeJjjDetail                = "jjj.detail"
+	ScopeJjjFiles                 = "jjj.files"
+	ScopeJjjNotes                 = "jjj.notes"
+	ScopeJjjShell                 = "jjj.shell"
+	ScopeJjjStatus                = "jjj.status"
 	ScopeOplog                    = "oplog"
 	ScopeOplogQuickSearch         = "oplog.quick_search"
 	ScopePassword                 = "password"
@@ -290,6 +296,92 @@ func ResolveIntent(scope string, action keybindings.Action, args map[string]any)
 			return intents.Apply{}, true
 		case keybindings.Action("input.cancel"):
 			return intents.Cancel{}, true
+		}
+	case ScopeJjjBookmarks:
+		switch action {
+		case keybindings.Action("jjj.bookmarks.advance"):
+			return intents.BookmarkPaneAdvance{ToWorkingCopy: false}, true
+		case keybindings.Action("jjj.bookmarks.advance_to_working_copy"):
+			return intents.BookmarkPaneAdvance{ToWorkingCopy: true}, true
+		}
+	case ScopeJjjDetail:
+		switch action {
+		case keybindings.Action("jjj.detail.back"):
+			return intents.ShellFocusPanel{Panel: 4}, true
+		case keybindings.Action("jjj.detail.half_page_down"):
+			return intents.PanelScroll{Delta: 1, Half: true}, true
+		case keybindings.Action("jjj.detail.half_page_up"):
+			return intents.PanelScroll{Delta: -1, Half: true}, true
+		case keybindings.Action("jjj.detail.page_down"):
+			return intents.PanelScroll{Delta: 1, Page: true}, true
+		case keybindings.Action("jjj.detail.page_up"):
+			return intents.PanelScroll{Delta: -1, Page: true}, true
+		case keybindings.Action("jjj.detail.scroll_down"):
+			return intents.PanelScroll{Delta: 1}, true
+		case keybindings.Action("jjj.detail.scroll_up"):
+			return intents.PanelScroll{Delta: -1}, true
+		}
+	case ScopeJjjFiles:
+		switch action {
+		case keybindings.Action("jjj.files.annotate"):
+			return intents.FilesAnnotate{}, true
+		case keybindings.Action("jjj.files.diffedit"):
+			return intents.FilesDiffEdit{}, true
+		case keybindings.Action("jjj.files.next_panel"):
+			return intents.ShellCyclePanel{Delta: 1}, true
+		case keybindings.Action("jjj.files.open_editor"):
+			return intents.FilesOpenEditor{}, true
+		case keybindings.Action("jjj.files.prev_panel"):
+			return intents.ShellCyclePanel{Delta: -1}, true
+		case keybindings.Action("jjj.files.resolve"):
+			return intents.FilesResolve{}, true
+		case keybindings.Action("jjj.files.show_diff"):
+			return intents.FilesShowDiff{}, true
+		}
+	case ScopeJjjNotes:
+		switch action {
+		case keybindings.Action("jjj.notes.back"):
+			return intents.ShellFocusPanel{Panel: 4}, true
+		case keybindings.Action("jjj.notes.describe"):
+			return intents.NotesDescribe{}, true
+		case keybindings.Action("jjj.notes.scroll_down"):
+			return intents.PanelScroll{Delta: 1}, true
+		case keybindings.Action("jjj.notes.scroll_up"):
+			return intents.PanelScroll{Delta: -1}, true
+		}
+	case ScopeJjjShell:
+		switch action {
+		case keybindings.Action("jjj.shell.focus_bookmarks"):
+			return intents.ShellFocusPanel{Panel: 3}, true
+		case keybindings.Action("jjj.shell.focus_detail"):
+			return intents.ShellFocusPanel{Panel: 0}, true
+		case keybindings.Action("jjj.shell.focus_files"):
+			return intents.ShellFocusPanel{Panel: 2}, true
+		case keybindings.Action("jjj.shell.focus_journal"):
+			return intents.ShellFocusPanel{Panel: 4}, true
+		case keybindings.Action("jjj.shell.focus_notes"):
+			return intents.ShellFocusPanel{Panel: 6}, true
+		case keybindings.Action("jjj.shell.focus_status"):
+			return intents.ShellFocusPanel{Panel: 1}, true
+		case keybindings.Action("jjj.shell.next_day"):
+			return intents.ShellJumpDay{Forward: true}, true
+		case keybindings.Action("jjj.shell.next_panel"):
+			return intents.ShellCyclePanel{Delta: 1}, true
+		case keybindings.Action("jjj.shell.prev_day"):
+			return intents.ShellJumpDay{Forward: false}, true
+		case keybindings.Action("jjj.shell.prev_panel"):
+			return intents.ShellCyclePanel{Delta: -1}, true
+		case keybindings.Action("jjj.shell.toggle_journal"):
+			return intents.ShellToggleJournal{}, true
+		case keybindings.Action("jjj.shell.zoom_in"):
+			return intents.ShellZoom{Delta: 1}, true
+		case keybindings.Action("jjj.shell.zoom_out"):
+			return intents.ShellZoom{Delta: -1}, true
+		}
+	case ScopeJjjStatus:
+		switch action {
+		case keybindings.Action("jjj.status.back"):
+			return intents.ShellFocusPanel{Panel: 4}, true
 		}
 	case ScopeOplog:
 		switch action {

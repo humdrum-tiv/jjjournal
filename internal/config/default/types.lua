@@ -218,6 +218,60 @@ function wait_refresh() end
 ---@field cancel fun()
 ---@field close fun()
 
+---@class jjui.jjj
+---@field bookmarks jjui.jjj.bookmarks
+---@field detail jjui.jjj.detail
+---@field files jjui.jjj.files
+---@field notes jjui.jjj.notes
+---@field shell jjui.jjj.shell
+---@field status jjui.jjj.status
+
+---@class jjui.jjj.bookmarks
+---@field advance fun()
+---@field advance_to_working_copy fun()
+
+---@class jjui.jjj.detail
+---@field back fun()
+---@field half_page_down fun()
+---@field half_page_up fun()
+---@field page_down fun()
+---@field page_up fun()
+---@field scroll_down fun()
+---@field scroll_up fun()
+
+---@class jjui.jjj.files
+---@field annotate fun()
+---@field diffedit fun()
+---@field next_panel fun()
+---@field open_editor fun()
+---@field prev_panel fun()
+---@field resolve fun()
+---@field show_diff fun()
+
+---@class jjui.jjj.notes
+---@field back fun()
+---@field describe fun()
+---@field scroll_down fun()
+---@field scroll_up fun()
+
+---@class jjui.jjj.shell
+---@field focus_bookmarks fun()
+---@field focus_detail fun()
+---@field focus_files fun()
+---@field focus_journal fun()
+---@field focus_notes fun()
+---@field focus_status fun()
+---@field next_day fun()
+---@field next_panel fun()
+---@field prev_day fun()
+---@field prev_panel fun()
+---@field toggle_journal fun()
+---@field zoom_in fun()
+---@field zoom_out fun()
+
+---@class jjui.jjj.status
+---@field back fun()
+
 ---@class jjui.oplog
 ---@field quick_search jjui.oplog.quick_search
 ---@field close fun()
@@ -556,6 +610,7 @@ function wait_refresh() end
 ---@field git jjui.git
 ---@field help jjui.help
 ---@field input jjui.input
+---@field jjj jjui.jjj
 ---@field oplog jjui.oplog
 ---@field password jjui.password
 ---@field redo jjui.redo
@@ -587,6 +642,7 @@ function wait_refresh() end
 ---@field git jjui.git
 ---@field help jjui.help
 ---@field input jjui.input
+---@field jjj jjui.jjj
 ---@field oplog jjui.oplog
 ---@field password jjui.password
 ---@field redo jjui.redo
