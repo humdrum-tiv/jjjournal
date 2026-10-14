@@ -165,3 +165,14 @@ func (r *recordingPanel) draw(*render.DisplayContext, layout.Box) {}
 func (r *recordingPanel) scopes() []common.Scope                  { return nil }
 func (r *recordingPanel) setFocused(bool)                         {}
 func (r *recordingPanel) editing() bool                           { return false }
+
+func TestNotesRegisteredAndScoped(t *testing.T) {
+	s := newTestShell()
+	require.True(t, s.present()[PanelNotes])
+	s.setFocus(PanelNotes)
+	require.Equal(t, []keybindings.ScopeName{actions.ScopeJjjNotes, actions.ScopeJjjShell}, names(s.Scopes()))
+	_, handled := s.handleIntent(intents.PanelScroll{Delta: 1})
+	require.True(t, handled)
+	_, handled = s.handleIntent(intents.NotesDescribe{})
+	require.True(t, handled, "consumed even without a core")
+}

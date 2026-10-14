@@ -7,6 +7,7 @@ import (
 	"github.com/idursun/jjui/internal/ui/common"
 	"github.com/idursun/jjui/internal/ui/intents"
 	"github.com/idursun/jjui/internal/ui/layout"
+	"github.com/idursun/jjui/internal/ui/notes"
 	"github.com/idursun/jjui/internal/ui/preview"
 	"github.com/idursun/jjui/internal/ui/render"
 	"github.com/idursun/jjui/internal/ui/statuspanel"
@@ -123,4 +124,39 @@ func (p *detailPanel) handleIntent(intent intents.Intent) (tea.Cmd, bool) {
 	default:
 		return p.m.Scroll(sc.Delta), true
 	}
+}
+
+// notesPanel hosts the Notes model; enter opens inline describe on Journal.
+type notesPanel struct {
+	s *Shell
+	m *notes.Model
+}
+
+func (p *notesPanel) title() string                                    { return "Notes" }
+func (p *notesPanel) init() tea.Cmd                                    { return nil }
+func (p *notesPanel) update(msg tea.Msg) tea.Cmd                       { return p.m.Update(msg) }
+func (p *notesPanel) setFocused(bool)                                  {}
+func (p *notesPanel) editing() bool                                    { return false }
+func (p *notesPanel) draw(dl *render.DisplayContext, inner layout.Box) { p.m.ViewRect(dl, inner) }
+func (p *notesPanel) scopes() []common.Scope {
+	return []common.Scope{{Name: actions.ScopeJjjNotes, Leak: common.LeakGlobal, Handler: p.s.h}}
+}
+func (p *notesPanel) handleIntent(intent intents.Intent) (tea.Cmd, bool) {
+	switch it := intent.(type) {
+	case intents.PanelScroll:
+		p.m.Scroll(it.Delta)
+		return nil, true
+	case intents.NotesDescribe:
+		if !p.s.hasCore {
+			return nil, true
+		}
+		rev := p.s.core.Revisions.SelectedRevision()
+		if rev == nil {
+			return nil, true
+		}
+		p.s.setFocus(PanelJournal)
+		cmd, _ := p.s.core.Revisions.HandleIntent(intents.OpenInlineDescribe{Selected: rev})
+		return cmd, true
+	}
+	return nil, false
 }

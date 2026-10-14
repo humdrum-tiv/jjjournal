@@ -18,6 +18,7 @@ import (
 	appContext "github.com/idursun/jjui/internal/ui/context"
 	"github.com/idursun/jjui/internal/ui/intents"
 	"github.com/idursun/jjui/internal/ui/layout"
+	"github.com/idursun/jjui/internal/ui/notes"
 	"github.com/idursun/jjui/internal/ui/preview"
 	"github.com/idursun/jjui/internal/ui/render"
 	"github.com/idursun/jjui/internal/ui/revisions"
@@ -85,6 +86,7 @@ func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {
 	s.register(PanelStatus, &statusPanel{m: status, h: s.h})
 	s.register(PanelJournal, &journalPanel{s: s})
 	s.register(PanelDetail, &detailPanel{m: s.detail, h: s.h})
+	s.register(PanelNotes, &notesPanel{s: s, m: notes.New(ctx)})
 	return s
 }
 
