@@ -25,6 +25,7 @@ const (
 type descMsg struct {
 	changeID, text string
 	seq            uint64
+	err            error
 }
 
 type Model struct {
@@ -32,6 +33,7 @@ type Model struct {
 	changeID string
 	text     string
 	loaded   bool
+	err      error
 	seq      uint64
 	offset   int
 }
@@ -47,7 +49,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		if !ok || rev.ChangeId == m.changeID {
 			return nil
 		}
-		m.changeID, m.offset = rev.ChangeId, 0
+		m.changeID, m.offset, m.loaded = rev.ChangeId, 0, false
 		return m.reload()
 	case common.UpdateRevisionsSuccessMsg:
 		if m.changeID != "" {
@@ -55,7 +57,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		}
 	case descMsg:
 		if msg.seq == m.seq && msg.changeID == m.changeID {
-			m.text, m.loaded = msg.text, true
+			m.text, m.err, m.loaded = msg.text, msg.err, true
 		}
 	}
 	return nil
@@ -67,14 +69,18 @@ func (m *Model) reload() tea.Cmd {
 	return common.Debounce(debounceID, debounceDuration, func() tea.Msg {
 		out, err := ctx.RunCommandImmediate(jj.GetDescription(id))
 		if err != nil {
-			return descMsg{changeID: id, seq: seq}
+			return descMsg{changeID: id, seq: seq, err: err}
 		}
 		return descMsg{changeID: id, text: string(out), seq: seq}
 	})
 }
 
-// Lines is the description wrapped to width; "(no description)" when empty.
+// Lines is the description wrapped to width; "(no description)" when empty,
+// or a single "(description unavailable: ...)" line when the load failed.
 func (m *Model) Lines(width int) []string {
+	if m.err != nil {
+		return []string{"(description unavailable: " + m.err.Error() + ")"}
+	}
 	text := strings.TrimRight(m.text, "\n ")
 	if strings.TrimSpace(text) == "" {
 		return []string{"(no description)"}

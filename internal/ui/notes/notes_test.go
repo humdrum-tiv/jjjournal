@@ -1,6 +1,8 @@
 package notes
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -53,6 +55,22 @@ func TestStaleDescriptionIgnored(t *testing.T) {
 	m := New(test.NewTestContext(test.NewTestCommandRunner(t)))
 	m.seq = 2
 	m.Update(descMsg{changeID: "old", text: "stale", seq: 1})
+	require.False(t, m.loaded)
+}
+
+func TestDescriptionErrorIsShown(t *testing.T) {
+	m := New(test.NewTestContext(test.NewTestCommandRunner(t)))
+	m.changeID, m.seq = "abc", 1
+	m.Update(descMsg{changeID: "abc", seq: 1, err: errors.New("boom")})
+	lines := m.Lines(40)
+	require.Len(t, lines, 1)
+	require.True(t, strings.HasPrefix(lines[0], "(description unavailable:"), "got %q", lines[0])
+}
+
+func TestRevisionSwitchClearsLoaded(t *testing.T) {
+	m := New(test.NewTestContext(test.NewTestCommandRunner(t)))
+	m.changeID, m.text, m.loaded = "old", "old text\n", true
+	m.Update(common.SelectionChangedMsg{Item: common.SelectedRevision{ChangeId: "new"}})
 	require.False(t, m.loaded)
 }
 
