@@ -131,3 +131,7 @@ func TestRemoteFetchTimes(t *testing.T) {
 func TestRemoteFetchTimesNoFetchHead(t *testing.T) {
 	require.Empty(t, RemoteFetchTimes(t.TempDir(), map[string]string{"origin": "git@github.com:a/b.git"}))
 }
+
+func TestNormalizeRemoteURLWithPort(t *testing.T) {
+	require.Equal(t, normalizeRemoteURL("ssh://host:22/x"), normalizeRemoteURL("ssh://git@host:22/x.git"))
+}

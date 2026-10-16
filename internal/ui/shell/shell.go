@@ -33,8 +33,13 @@ import (
 	"github.com/idursun/jjui/internal/ui/tags"
 )
 
-// focusPanelMsg is produced by clicking a panel's rectangle.
+// focusPanelMsg is produced by clicking a panel's title (a tab label in a
+// tabbed panel: it picks that tab).
 type focusPanelMsg struct{ id PanelID }
+
+// focusBoxMsg is produced by clicking anywhere else in a panel's box: it
+// focuses the panel and keeps its current tab.
+type focusBoxMsg struct{ id PanelID }
 
 var (
 	borderFocused   = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
@@ -58,6 +63,9 @@ type Shell struct {
 	// split-pane focus or revision operation is open (Core.InNormalMode);
 	// tests replace it.
 	normalMode func() bool
+	// journalIDs lists the commit ids of Journal's loaded rows
+	// (Revisions.GetCommitIds); tests replace it.
+	journalIDs func() []string
 	// width, height: the last window size; zero until the first
 	// tea.WindowSizeMsg. Focus and the Files load use the layout they give.
 	width, height int
@@ -100,6 +108,12 @@ func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {
 			return s.core.InNormalMode()
 		}
 		return s.core.Revisions.InNormalMode() && !s.core.Revisions.HasQuickSearch()
+	}
+	s.journalIDs = func() []string {
+		if !s.hasCore {
+			return nil
+		}
+		return s.core.Revisions.GetCommitIds()
 	}
 	s.journalMode.Store(cfg.Journal.Enabled)
 	status := statuspanel.New(ctx, func() string {
@@ -233,10 +247,7 @@ func (s *Shell) tagsHidden() bool { return slices.Contains(s.cfg.Shell.Hidden, "
 
 // journalHas reports whether Journal's loaded rows include commitID.
 func (s *Shell) journalHas(commitID string) bool {
-	if !s.hasCore {
-		return false
-	}
-	return slices.ContainsFunc(s.core.Revisions.GetCommitIds(), func(id string) bool {
+	return slices.ContainsFunc(s.journalIDs(), func(id string) bool {
 		return strings.EqualFold(id, commitID)
 	})
 }
@@ -444,6 +455,9 @@ func (s *Shell) update(msg tea.Msg) (tea.Cmd, bool) {
 	case focusPanelMsg:
 		s.focusPanel(msg.id)
 		return nil, true
+	case focusBoxMsg:
+		s.setFocus(msg.id)
+		return nil, true
 	case revisions.PaneClickedMsg, revisions.ItemClickedMsg:
 		if !s.setFocus(PanelJournal) {
 			return nil, true // a panel is editing: the click must not move the cursor under it
@@ -577,7 +591,7 @@ func (s *Shell) drawPanel(dl *render.DisplayContext, box layout.Box, id PanelID)
 		Height(h).
 		Render("")
 	dl.AddDraw(box.R, frame, render.ZBase)
-	dl.AddInteraction(box.R, focusPanelMsg{id: id}, render.InteractionClick, -1)
+	dl.AddInteraction(box.R, focusBoxMsg{id: id}, render.InteractionClick, -1)
 	if tp, ok := p.(tabbedPanel); ok {
 		// [3]─Remotes─[8]─Tags: the active tab in the panel's style, the
 		// others dimmed; each label focuses its tab when clicked.

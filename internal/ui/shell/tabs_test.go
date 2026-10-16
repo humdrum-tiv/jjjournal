@@ -3,6 +3,7 @@ package shell
 import (
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
@@ -81,4 +82,31 @@ func TestPanelThreeTabTitle(t *testing.T) {
 	s.drawPanel(dl, layout.NewBox(layout.Rect(0, 0, 40, 6)), PanelBookmarks)
 	out := ansi.Strip(dl.RenderToString(40, 6))
 	require.Contains(t, out, "[3]─Remotes─[8]─Tags")
+}
+
+func TestBodyClickKeepsTagsTab(t *testing.T) {
+	s := newTestShell()
+	s.handleIntent(intents.ShellFocusPanel{Panel: int(PanelTags)})
+	s.Update(focusBoxMsg{id: PanelBookmarks})
+	require.Equal(t, tabTags, s.panels[PanelBookmarks].(*bookmarksPanel).tab, "a click in the Tags list must not switch tab")
+	require.Equal(t, PanelBookmarks, s.focus)
+}
+
+func TestBodyClickBoxIsNotATabLabel(t *testing.T) {
+	s := newTestShell()
+	s.handleIntent(intents.ShellFocusPanel{Panel: int(PanelTags)})
+	dl := render.NewDisplayContext()
+	s.drawPanel(dl, layout.NewBox(layout.Rect(0, 0, 40, 6)), PanelBookmarks)
+	msg, ok := dl.ProcessMouseEvent(tea.MouseClickMsg{X: 5, Y: 3, Button: tea.MouseLeft})
+	require.True(t, ok)
+	require.Equal(t, focusBoxMsg{id: PanelBookmarks}, msg)
+}
+
+func TestRevealLoadedTagMovesToJournal(t *testing.T) {
+	s := newTestShell()
+	s.journalIDs = func() []string { return []string{"abc", "cc"} }
+	s.handleIntent(intents.ShellFocusPanel{Panel: int(PanelTags)})
+	_, handled := s.Update(bookmarkpane.RevealRevisionMsg{CommitID: "CC"})
+	require.False(t, handled)
+	require.Equal(t, PanelJournal, s.focus)
 }
