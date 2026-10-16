@@ -121,6 +121,16 @@ func (m *Model) renderListRow(dl *render.DisplayContext, index int, rect layout.
 	} else {
 		tb.Styled("  ", m.styles.text)
 	}
+	if m.jjj != nil {
+		w := &rowWriter{tb: tb, left: rect.Dx() - 2}
+		if row.Depth > 0 {
+			m.renderJournalRemoteRow(w, group, node)
+		} else {
+			m.renderJournalTopRow(w, row, group, node)
+		}
+		tb.Done()
+		return
+	}
 	if row.Depth > 0 {
 		m.renderRemoteChildRow(tb, node)
 		tb.Done()

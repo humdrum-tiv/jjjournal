@@ -18,3 +18,9 @@ func TestFileCommands(t *testing.T) {
 	require.Equal(t, CommandArgs{"resolve", "-r", "abc", `file:"a b.go"`, `file:"c.go"`}, ResolveFiles("abc", f))
 	require.Equal(t, CommandArgs{"diffedit", "-r", "abc", `file:"a b.go"`, `file:"c.go"`}, DiffEditFiles("abc", f))
 }
+
+func TestBookmarkOnlyIn(t *testing.T) {
+	require.Equal(t, CommandArgs{"log", "--no-graph", "--ignore-working-copy", "--color", "never",
+		"-r", `"main"@"origin".."main"`, "-T", `"x\n"`}, BookmarkOnlyIn("main", "origin", ""))
+	require.Equal(t, `"main".."main"@"origin"`, BookmarkOnlyIn("main", "", "origin")[6])
+}

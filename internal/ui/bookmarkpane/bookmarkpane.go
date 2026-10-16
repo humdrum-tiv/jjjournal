@@ -130,6 +130,7 @@ type Model struct {
 	selectionMode        rowSelectionMode
 	styles               styles
 	confirmation         *confirmation.Model
+	jjj                  *journalView // jjj seam: nil upstream, see jjj_view.go
 }
 
 var (
@@ -278,6 +279,7 @@ func (m *Model) SyncRevisionContext(currentCommitID string, visibleCommitIDs []s
 	m.currentCommitID = currentCommitID
 	m.visibleCommitIDs = slices.Clone(visibleCommitIDs)
 	m.tree.sort(currentCommitID, visibleCommitIDs)
+	m.pinTree()
 	m.syncRemoteNamesWithTree()
 	m.syncSelectionsWithTree()
 	m.visibleRows = m.tree.buildVisibleRows(m.currentFilterText(), m.activeRemoteFilter())
@@ -314,6 +316,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	case rowsLoadedMsg:
 		previousTarget, hadSelection := m.selectedTarget()
 		m.tree = msg.tree
+		m.pinTree()
 		m.syncRemoteNamesWithTree()
 		m.syncSelectionsWithTree()
 		m.applyFilters(m.selectionMode == selectionResetTop)
@@ -512,17 +515,25 @@ func (m *Model) ViewRect(dl *render.DisplayContext, box layout.Box) {
 		return
 	}
 
-	titleBox, content := content.CutTop(1)
-	m.renderTitle(dl, titleBox)
-	remoteBox, content := content.CutTop(1)
-	m.renderRemotes(dl, remoteBox)
+	if m.jjj == nil {
+		titleBox, rest := content.CutTop(1)
+		m.renderTitle(dl, titleBox)
+		content = rest
+	}
+	if m.jjj == nil || m.journalShowsRemotes() {
+		remoteBox, rest := content.CutTop(1)
+		m.renderRemotes(dl, remoteBox)
+		content = rest
+	}
 	var listBox layout.Box
 	if m.filterState == filterEditing || m.currentFilterText() != "" {
 		filterBox, rest := content.CutTop(1)
 		m.renderFilter(dl, filterBox)
 		_, listBox = rest.CutTop(1)
-	} else {
+	} else if m.jjj == nil || m.journalShowsRemotes() {
 		_, listBox = content.CutTop(1)
+	} else {
+		listBox = content
 	}
 	m.renderList(dl, listBox)
 }

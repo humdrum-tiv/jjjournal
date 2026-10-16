@@ -63,6 +63,12 @@ r rename, t/u track, P push, F fetch, e edit, n new, s show).
 | Bookmarks | `a` | advance closest bookmark to the selected revision |
 | Bookmarks | `A` / `shift+a` | advance to @ and push |
 
+Bookmarks rows: pinned bookmarks (`[bookmarks] pinned`, default `main`,
+`master`, `trunk`) come first, tagged `trunk`. Each local bookmark shows its
+tracked remotes with a sync marker: `=` in sync, `↑n` local has n commits the
+remote lacks (push), `↓n` the remote has n commits local lacks, `⇅a/b`
+diverged. `enter` expands a bookmark to one row per remote, in words.
+
 ## Config
 
 `~/.config/jjj/config.toml`, `JJJ_CONFIG_DIR`, and `<repo>/.jjj/config.toml`;
@@ -76,6 +82,8 @@ every jjui key works, plus:
     enabled        = true
     narrow_columns = 120
     left_width     = 0.34
+    [bookmarks]
+    pinned = ["main", "master", "trunk"]   # shown first, tagged trunk
 
 Journal mode is delivered through the streaming row source, so jjj forces
 `[revisions] log_batching = true` at startup regardless of what's in your

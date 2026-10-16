@@ -30,6 +30,11 @@ type ShellConfig struct {
 	Hidden        []string `toml:"hidden"`
 }
 
+type BookmarksConfig struct {
+	// Pinned bookmarks sort first in the Bookmarks panel, tagged "trunk".
+	Pinned []string `toml:"pinned"`
+}
+
 type TasksConfig struct {
 	Enabled  bool `toml:"enabled"`
 	ShowDone bool `toml:"show_done"`
@@ -42,10 +47,11 @@ type StatsConfig struct {
 // Config is the jjj-only part of config.toml. Upstream tables in the same
 // file are decoded by config.Config; unknown tables are ignored on both sides.
 type Config struct {
-	Journal JournalConfig `toml:"journal"`
-	Shell   ShellConfig   `toml:"shell"`
-	Tasks   TasksConfig   `toml:"tasks"`
-	Stats   StatsConfig   `toml:"stats"`
+	Journal   JournalConfig   `toml:"journal"`
+	Shell     ShellConfig     `toml:"shell"`
+	Bookmarks BookmarksConfig `toml:"bookmarks"`
+	Tasks     TasksConfig     `toml:"tasks"`
+	Stats     StatsConfig     `toml:"stats"`
 }
 
 // Current is the live jjj config, filled by ApplyDefaults and then by each

@@ -2,6 +2,8 @@ package jj
 
 // jjj-only command builders (new file in an upstream package; see UPSTREAM.md).
 
+import "strconv"
+
 // BookmarkAdvance moves bookmarks forward to `to`. With no names jj advances
 // the closest bookmarks; names are matched exactly, not as globs.
 func BookmarkAdvance(to string, names ...string) CommandArgs {
@@ -30,4 +32,18 @@ func withFilesets(args CommandArgs, files []FileName) CommandArgs {
 		args = append(args, f.Escaped())
 	}
 	return args
+}
+
+// BookmarkOnlyIn lists one line per commit reachable from bookmark `name`
+// on side `to` but not from side `from`; a side is a remote name, or "" for
+// the local bookmark. Counting the lines gives ahead/behind.
+func BookmarkOnlyIn(name, from, to string) CommandArgs {
+	ref := func(remote string) string {
+		if remote == "" {
+			return strconv.Quote(name)
+		}
+		return strconv.Quote(name) + "@" + strconv.Quote(remote)
+	}
+	return CommandArgs{"log", "--no-graph", "--ignore-working-copy", "--color", "never",
+		"-r", ref(from) + ".." + ref(to), "-T", `"x\n"`}
 }

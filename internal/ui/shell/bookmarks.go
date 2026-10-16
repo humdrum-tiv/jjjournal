@@ -1,7 +1,11 @@
 package shell
 
 import (
+	"strings"
+
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/idursun/jjui/internal/jj"
 
 	"github.com/idursun/jjui/internal/ui/actions"
 	"github.com/idursun/jjui/internal/ui/bookmarkpane"
@@ -15,17 +19,74 @@ import (
 type bookmarksPanel struct {
 	s *Shell
 	m *bookmarkpane.Model
+	// syncSeq tags sync loads; only the latest result is applied.
+	syncSeq int
+}
+
+// syncLoadedMsg carries the sync states of one load.
+type syncLoadedMsg struct {
+	seq  int
+	sync map[string]bookmarkpane.Sync
 }
 
 func (p *bookmarksPanel) title() string { return "Bookmarks" }
-func (p *bookmarksPanel) init() tea.Cmd { return p.m.OnShow() }
+func (p *bookmarksPanel) init() tea.Cmd { return tea.Batch(p.m.OnShow(), p.loadSync()) }
+
+// loadSync compares every local bookmark with each tracked remote copy.
+// Pairs on the same commit need no jj call; others cost two `jj log`s.
+func (p *bookmarksPanel) loadSync() tea.Cmd {
+	p.syncSeq++
+	seq, ctx := p.syncSeq, p.s.ctx
+	return func() tea.Msg {
+		out, err := ctx.RunCommandImmediate(jj.BookmarkListAll())
+		if err != nil {
+			return syncLoadedMsg{seq: seq}
+		}
+		count := func(args jj.CommandArgs) (int, bool) {
+			o, err := ctx.RunCommandImmediate(args)
+			if err != nil {
+				return 0, false
+			}
+			return strings.Count(string(o), "x"), true
+		}
+		sync := map[string]bookmarkpane.Sync{}
+		for _, b := range jj.ParseBookmarkListOutput(string(out)) {
+			if b.Local == nil || !b.Local.Present {
+				continue
+			}
+			for _, r := range b.Remotes {
+				if !r.Tracked || !r.Present || r.Remote == "git" {
+					continue
+				}
+				key := bookmarkpane.SyncKey(b.Name, r.Remote)
+				if r.CommitId == b.Local.CommitId {
+					sync[key] = bookmarkpane.Sync{}
+					continue
+				}
+				ahead, ok1 := count(jj.BookmarkOnlyIn(b.Name, r.Remote, ""))
+				behind, ok2 := count(jj.BookmarkOnlyIn(b.Name, "", r.Remote))
+				if ok1 && ok2 {
+					sync[key] = bookmarkpane.Sync{Ahead: ahead, Behind: behind}
+				}
+			}
+		}
+		return syncLoadedMsg{seq: seq, sync: sync}
+	}
+}
 
 // update keeps the pane's revision context in sync, as ui.syncBookmarkPaneContext
 // does for the split pane: it sorts by proximity and advances toward it.
 func (p *bookmarksPanel) update(msg tea.Msg) tea.Cmd {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case common.SelectionChangedMsg, common.UpdateRevisionsSuccessMsg:
 		p.sync()
+	case common.RefreshMsg:
+		return tea.Batch(p.loadSync(), p.m.Update(msg))
+	case syncLoadedMsg:
+		if msg.seq == p.syncSeq && msg.sync != nil {
+			p.m.SetSync(msg.sync)
+		}
+		return nil
 	}
 	return p.m.Update(msg)
 }

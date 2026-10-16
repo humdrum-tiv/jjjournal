@@ -85,6 +85,10 @@ if(description,
 ]
 file_command = ["diff", "--color", "always", "-r", "$change_id", "--git", "$file"]
 
+[bookmarks]
+# Shown first in the Bookmarks panel, apart from milestone bookmarks.
+pinned = ["main", "master", "trunk"]
+
 [journal]
 enabled = true
 limit = 5000

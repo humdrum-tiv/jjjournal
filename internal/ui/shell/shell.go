@@ -116,7 +116,9 @@ func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {
 		rev := s.core.Revisions.SelectedRevision()
 		return rev != nil && rev.IsWorkingCopy
 	})})
-	s.register(PanelBookmarks, &bookmarksPanel{s: s, m: bookmarkpane.New(ctx)})
+	bookmarks := bookmarkpane.New(ctx)
+	bookmarks.EnableJournalView(cfg.Bookmarks.Pinned)
+	s.register(PanelBookmarks, &bookmarksPanel{s: s, m: bookmarks})
 	return s
 }
 
