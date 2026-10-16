@@ -83,7 +83,7 @@ var (
 // panelNames maps [shell] hidden entries to panels. Journal and Detail
 // cannot be hidden.
 var panelNames = map[string]PanelID{
-	"status": PanelStatus, "files": PanelFiles, "bookmarks": PanelBookmarks, "notes": PanelNotes,
+	"status": PanelStatus, "files": PanelFiles, "bookmarks": PanelBookmarks, "remotes": PanelBookmarks, "notes": PanelNotes,
 }
 
 func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {

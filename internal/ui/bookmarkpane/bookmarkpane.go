@@ -520,17 +520,18 @@ func (m *Model) ViewRect(dl *render.DisplayContext, box layout.Box) {
 		m.renderTitle(dl, titleBox)
 		content = rest
 	}
-	if m.jjj == nil || m.journalShowsRemotes() {
-		remoteBox, rest := content.CutTop(1)
+	remoteBox, content := content.CutTop(1)
+	if m.jjj == nil {
 		m.renderRemotes(dl, remoteBox)
-		content = rest
+	} else {
+		m.renderJournalRemotes(dl, remoteBox)
 	}
 	var listBox layout.Box
 	if m.filterState == filterEditing || m.currentFilterText() != "" {
 		filterBox, rest := content.CutTop(1)
 		m.renderFilter(dl, filterBox)
 		_, listBox = rest.CutTop(1)
-	} else if m.jjj == nil || m.journalShowsRemotes() {
+	} else if m.jjj == nil {
 		_, listBox = content.CutTop(1)
 	} else {
 		listBox = content

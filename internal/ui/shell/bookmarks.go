@@ -2,10 +2,12 @@ package shell
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/idursun/jjui/internal/jj"
+	"github.com/idursun/jjui/internal/statusinfo"
 
 	"github.com/idursun/jjui/internal/ui/actions"
 	"github.com/idursun/jjui/internal/ui/bookmarkpane"
@@ -25,11 +27,12 @@ type bookmarksPanel struct {
 
 // syncLoadedMsg carries the sync states of one load.
 type syncLoadedMsg struct {
-	seq  int
-	sync map[string]bookmarkpane.Sync
+	seq     int
+	sync    map[string]bookmarkpane.Sync
+	fetched map[string]time.Time
 }
 
-func (p *bookmarksPanel) title() string { return "Bookmarks" }
+func (p *bookmarksPanel) title() string { return "Remotes" }
 func (p *bookmarksPanel) init() tea.Cmd { return tea.Batch(p.m.OnShow(), p.loadSync()) }
 
 // loadSync compares every local bookmark with each tracked remote copy.
@@ -41,6 +44,10 @@ func (p *bookmarksPanel) loadSync() tea.Cmd {
 		out, err := ctx.RunCommandImmediate(jj.BookmarkListAll())
 		if err != nil {
 			return syncLoadedMsg{seq: seq}
+		}
+		var fetched map[string]time.Time
+		if remotes, err := ctx.RunCommandImmediate(jj.GitRemoteListReadOnly()); err == nil {
+			fetched = statusinfo.RemoteFetchTimes(ctx.Location, statusinfo.ParseRemoteList(remotes))
 		}
 		count := func(args jj.CommandArgs) (int, bool) {
 			o, err := ctx.RunCommandImmediate(args)
@@ -70,7 +77,7 @@ func (p *bookmarksPanel) loadSync() tea.Cmd {
 				}
 			}
 		}
-		return syncLoadedMsg{seq: seq, sync: sync}
+		return syncLoadedMsg{seq: seq, sync: sync, fetched: fetched}
 	}
 }
 
@@ -85,6 +92,7 @@ func (p *bookmarksPanel) update(msg tea.Msg) tea.Cmd {
 	case syncLoadedMsg:
 		if msg.seq == p.syncSeq && msg.sync != nil {
 			p.m.SetSync(msg.sync)
+			p.m.SetFetchTimes(msg.fetched, time.Now())
 		}
 		return nil
 	}

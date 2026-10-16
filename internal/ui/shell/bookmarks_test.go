@@ -20,6 +20,7 @@ func TestLoadSyncCountsOnlyDifferingTrackedPairs(t *testing.T) {
 			"v1;origin;true;true;false;false;b1\n" +
 			"spike;.;true;false;false;false;s1\n" +
 			"spike;upstream;true;false;false;false;s0\n"))
+	runner.Expect(jj.GitRemoteListReadOnly()).SetOutput([]byte("origin git@github.com:a/b.git"))
 	runner.Expect(jj.BookmarkOnlyIn("main", "origin", "")).SetOutput([]byte("x\nx\nx"))
 	runner.Expect(jj.BookmarkOnlyIn("main", "", "origin")).SetOutput([]byte(""))
 	defer runner.Verify()
@@ -33,4 +34,5 @@ func TestLoadSyncCountsOnlyDifferingTrackedPairs(t *testing.T) {
 		"v1@origin":   {},
 	}, msg.sync, "git remote and untracked pairs are skipped; equal pairs need no jj call")
 	require.Equal(t, p.syncSeq, msg.seq)
+	require.NotNil(t, msg.fetched, "fetch times are loaded with the sync states")
 }

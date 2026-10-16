@@ -2,17 +2,22 @@ package bookmarkpane
 
 // jjj addition (new file; see UPSTREAM.md). The journal view of the pane:
 // pinned bookmarks (main) first and tagged, each local bookmark's sync state
-// against its tracked remotes spelled out, no heading, and the remote filter
-// line only while focused. Off unless EnableJournalView is called.
+// against its tracked remotes spelled out, no heading, and a remote line that
+// also shows each remote's last fetch. Off unless EnableJournalView is called.
 
 import (
 	"fmt"
 	"slices"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/idursun/jjui/internal/statusinfo"
 	"github.com/idursun/jjui/internal/ui/common"
+	"github.com/idursun/jjui/internal/ui/layout"
 	"github.com/idursun/jjui/internal/ui/render"
 )
 
@@ -29,9 +34,11 @@ func (s Sync) Diverged() bool { return s.Ahead > 0 && s.Behind > 0 }
 func SyncKey(name, remote string) string { return name + "@" + remote }
 
 type journalView struct {
-	pinned []string
-	sync   map[string]Sync
-	styles journalStyles
+	pinned  []string
+	sync    map[string]Sync
+	fetched map[string]time.Time
+	now     time.Time
+	styles  journalStyles
 }
 
 type journalStyles struct {
@@ -64,6 +71,38 @@ func (m *Model) SetSync(sync map[string]Sync) {
 	}
 }
 
+// SetFetchTimes records when each remote was last fetched; now is the time
+// ages are measured from. A remote with no entry is drawn without an age.
+func (m *Model) SetFetchTimes(at map[string]time.Time, now time.Time) {
+	if m.jjj != nil {
+		m.jjj.fetched, m.jjj.now = at, now
+	}
+}
+
+// renderJournalRemotes draws the always-visible remote line: the filter
+// names (clickable, the active one highlighted), each remote followed by
+// the age of its last fetch.
+func (m *Model) renderJournalRemotes(dl *render.DisplayContext, box layout.Box) {
+	if box.R.Dx() <= 0 || box.R.Dy() <= 0 {
+		return
+	}
+	w := &rowWriter{tb: dl.Text(box.R.Min.X, box.R.Min.Y, render.ZMenuContent), left: box.R.Dx()}
+	for i, name := range m.remoteNames {
+		if i > 0 {
+			w.put("  ", m.styles.text)
+		}
+		style := m.styles.dimmed
+		if i == m.selectedRemoteIdx {
+			style = common.DefaultPalette.Get("bookmarks", "menu", "", true)
+		}
+		w.click(name, style, RemoteClickedMsg{Index: i})
+		if at, ok := m.jjj.fetched[name]; ok {
+			w.put(" "+statusinfo.FormatAge(m.jjj.now, at), m.styles.dimmed)
+		}
+	}
+	w.tb.Done()
+}
+
 // pinTree moves pinned bookmarks to the front, keeping the rest in order.
 func (m *Model) pinTree() {
 	if m.jjj == nil || len(m.jjj.pinned) == 0 {
@@ -80,12 +119,6 @@ func (m *Model) pinTree() {
 
 func (m *Model) isPinned(item bookmarkTreeItem) bool {
 	return m.jjj != nil && !item.remoteOnly() && slices.Contains(m.jjj.pinned, item.Bookmark.Name)
-}
-
-// journalHeader reports whether the remote filter line is drawn: only while
-// focused, or when a filter other than "all" is active.
-func (m *Model) journalShowsRemotes() bool {
-	return m.Focused() || m.activeRemoteFilter() != allRemoteFilter
 }
 
 func (m *Model) syncFor(name, remote string) (Sync, bool) {
@@ -141,6 +174,19 @@ func (w *rowWriter) put(text string, style lipgloss.Style) *rowWriter {
 	}
 	w.left -= render.StringWidth(text)
 	w.tb.Styled(text, style)
+	return w
+}
+
+// click is put for a clickable piece.
+func (w *rowWriter) click(text string, style lipgloss.Style, msg tea.Msg) *rowWriter {
+	if w.left <= 0 {
+		return w
+	}
+	if render.StringWidth(text) > w.left {
+		text = ansi.Truncate(text, w.left, "…")
+	}
+	w.left -= render.StringWidth(text)
+	w.tb.Clickable(text, style, msg)
 	return w
 }
 

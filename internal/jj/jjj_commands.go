@@ -47,3 +47,8 @@ func BookmarkOnlyIn(name, from, to string) CommandArgs {
 	return CommandArgs{"log", "--no-graph", "--ignore-working-copy", "--color", "never",
 		"-r", ref(from) + ".." + ref(to), "-T", `"x\n"`}
 }
+
+// GitRemoteListReadOnly is GitRemoteList without a working-copy snapshot.
+func GitRemoteListReadOnly() CommandArgs {
+	return CommandArgs{"git", "remote", "list", "--ignore-working-copy", "--color", "never"}
+}

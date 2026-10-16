@@ -2,6 +2,7 @@ package bookmarkpane
 
 import (
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
@@ -43,7 +44,8 @@ func TestJournalViewRowsShowSyncState(t *testing.T) {
 	require.Contains(t, out, "feat  origin ⇅1/3")
 	require.Contains(t, out, "spike  local only")
 	require.NotContains(t, out, "Bookmarks", "no heading")
-	require.NotContains(t, out, "Remotes:", "remote filter hidden while unfocused")
+	require.NotContains(t, out, "Remotes:", "the old prefix is gone")
+	require.Contains(t, out, "all  local  origin", "the remote line is always drawn")
 }
 
 func TestJournalViewRowsClipToWidth(t *testing.T) {
@@ -59,4 +61,12 @@ func TestSyncWords(t *testing.T) {
 	require.Equal(t, "local 2 ahead, push to sync", syncWords(Sync{Ahead: 2}))
 	require.Equal(t, "local 3 behind, remote is newer", syncWords(Sync{Behind: 3}))
 	require.Equal(t, "diverged: 1 local, 3 remote", syncWords(Sync{Ahead: 1, Behind: 3}))
+}
+
+func TestJournalViewRemoteLineShowsFetchAge(t *testing.T) {
+	m := newJournalPane(t)
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	m.SetFetchTimes(map[string]time.Time{"origin": now.Add(-22 * time.Minute)}, now)
+	out := ansi.Strip(test.RenderImmediate(m, 60, 8))
+	require.Contains(t, out, "all  local  origin 22m ago")
 }
