@@ -137,6 +137,7 @@ var builtInActionScopes = map[string][]string{
 	"jjj.shell.focus_journal":                    {"jjj.shell"},
 	"jjj.shell.focus_notes":                      {"jjj.shell"},
 	"jjj.shell.focus_status":                     {"jjj.shell"},
+	"jjj.shell.focus_tags":                       {"jjj.shell"},
 	"jjj.shell.next_day":                         {"jjj.shell"},
 	"jjj.shell.next_panel":                       {"jjj.shell"},
 	"jjj.shell.prev_day":                         {"jjj.shell"},

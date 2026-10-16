@@ -25,13 +25,13 @@ jjj is a tracking fork of [idursun/jjui](https://github.com/idursun/jjui) (MIT).
 | `internal/jj/jjj_commands_test.go` | new test file for `jjj_commands.go` |
 | `internal/ui/bookmarkpane/advance_test.go` | new test file for `advance.go` |
 | `internal/ui/intents/jjj_intents.go` | new file: jjj intent types and `//jjui:bind` annotations (the generator scans only this directory); no upstream intent file edited |
-| `internal/jj/jjj_commands.go` | new file: jjj command builders (`BookmarkAdvance`, `FileAnnotate`, `ResolveFiles`, `DiffEditFiles`, `BookmarkOnlyIn`) |
+| `internal/jj/jjj_commands.go` | new file: jjj command builders (`BookmarkAdvance`, `FileAnnotate`, `ResolveFiles`, `DiffEditFiles`, `BookmarkOnlyIn`, `GitRemoteListReadOnly`, `TagListJournal`) |
 | `internal/ui/actions/catalog_gen.go`, `internal/ui/actionmeta/builtins_gen.go`, `internal/config/default/types.lua` | regenerated with jjj entries — after every upstream sync run `go run ./cmd/genactions`, never hand-merge |
 | `internal/jj/commands.go` | `LogTemplate` extracted from `Log` (pure extraction) so other row sources emit parser-compatible output |
 | `internal/ui/revisions/revisions.go` | `RowSource` interface, `RowSourceFactory`, `DefaultRowSource`, `SetRowSourceFactory`; `streamer` fields typed as the interface |
 | `internal/ui/help/help.go`, `internal/ui/help/builder.go` | `help.Intro` (groups drawn before the keybinding groups) and `ScopeGroup.Wide` (one entry per line, description wrapped, kept through the search filter); jjj fills `Intro` from `shell.Guide` in `cmd/jjj/main.go` |
 | `internal/ui/bookmarkpane/bookmarkpane.go`, `internal/ui/bookmarkpane/view.go` | jjj journal view hooks: `Model.jjj` field (nil upstream); `pinTree()` after each tree sort/load; `ViewRect` drops the heading and shows the remote filter line only while focused (or filtered) when `jjj` is set; `renderListRow` hands rows to `renderJournalTopRow`/`renderJournalRemoteRow` when `jjj` is set |
-| `internal/ui/bookmarkpane/jjj_view.go` (+ test) | new file: journal view — pinned (trunk) bookmarks first, per-remote sync markers (`=` `↑n` `↓n` `⇅a/b`) from `SetSync`, rows clipped to width |
+| `internal/ui/bookmarkpane/jjj_view.go` (+ test) | new file: journal view — pinned (trunk) bookmarks first, per-remote sync markers (`=` `↑n` `↓n` `⇅a/b`) from `SetSync`, rows clipped to width; `SetFetchTimes` draws each remote's last-fetch age on the always-shown remote line |
 | `internal/ui/bookmarkpane/advance.go` | new file: `Model.Advance` (`jj bookmark advance`, optional push) for the jjj Bookmarks panel; uses the pane's private selection helpers; upstream PR candidate |
 
 ## Sync procedure (manual until P6 scripts it)

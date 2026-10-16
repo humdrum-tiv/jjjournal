@@ -14,7 +14,7 @@ func TestGuideTakesKeysFromBindings(t *testing.T) {
 		{Action: "revisions.open_absorb", Scope: "revisions", Key: config.StringList{"x"}},
 	}
 	groups := Guide(bindings)
-	require.Len(t, groups, 2)
+	require.Len(t, groups, 3)
 	journal := groups[0]
 	require.True(t, journal.Wide)
 	require.Equal(t, "", journal.Entries[0].Label, "note first")

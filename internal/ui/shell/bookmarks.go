@@ -15,12 +15,23 @@ import (
 	"github.com/idursun/jjui/internal/ui/intents"
 	"github.com/idursun/jjui/internal/ui/layout"
 	"github.com/idursun/jjui/internal/ui/render"
+	"github.com/idursun/jjui/internal/ui/tags"
 )
 
-// bookmarksPanel hosts upstream's bookmark pane persistently (spec §4.3).
+type panelTab int
+
+const (
+	tabRemotes panelTab = iota
+	tabTags
+)
+
+// bookmarksPanel is panel 3: the Remotes tab hosts upstream's bookmark pane
+// persistently (spec §4.3), the Tags tab (key 8) the tags model.
 type bookmarksPanel struct {
-	s *Shell
-	m *bookmarkpane.Model
+	s    *Shell
+	m    *bookmarkpane.Model
+	tags *tags.Model
+	tab  panelTab
 	// syncSeq tags sync loads; only the latest result is applied.
 	syncSeq int
 }
@@ -32,8 +43,24 @@ type syncLoadedMsg struct {
 	fetched map[string]time.Time
 }
 
-func (p *bookmarksPanel) title() string { return "Remotes" }
-func (p *bookmarksPanel) init() tea.Cmd { return tea.Batch(p.m.OnShow(), p.loadSync()) }
+func (p *bookmarksPanel) title() string {
+	if p.tab == tabTags {
+		return "Tags"
+	}
+	return "Remotes"
+}
+
+func (p *bookmarksPanel) tabTitles() []tabTitle {
+	titles := []tabTitle{{id: PanelBookmarks, title: "Remotes", active: p.tab == tabRemotes}}
+	if !p.s.tagsHidden() {
+		titles = append(titles, tabTitle{id: PanelTags, title: "Tags", active: p.tab == tabTags})
+	}
+	return titles
+}
+
+func (p *bookmarksPanel) init() tea.Cmd {
+	return tea.Batch(p.m.OnShow(), p.loadSync(), p.tags.Load())
+}
 
 // loadSync compares every local bookmark with each tracked remote copy.
 // Pairs on the same commit need no jj call; others cost two `jj log`s.
@@ -88,7 +115,7 @@ func (p *bookmarksPanel) update(msg tea.Msg) tea.Cmd {
 	case common.SelectionChangedMsg, common.UpdateRevisionsSuccessMsg:
 		p.sync()
 	case common.RefreshMsg:
-		return tea.Batch(p.loadSync(), p.m.Update(msg))
+		return tea.Batch(p.loadSync(), p.tags.Load(), p.m.Update(msg))
 	case syncLoadedMsg:
 		if msg.seq == p.syncSeq && msg.sync != nil {
 			p.m.SetSync(msg.sync)
@@ -96,7 +123,7 @@ func (p *bookmarksPanel) update(msg tea.Msg) tea.Cmd {
 		}
 		return nil
 	}
-	return p.m.Update(msg)
+	return tea.Batch(p.tags.Update(msg), p.m.Update(msg))
 }
 
 func (p *bookmarksPanel) sync() {
@@ -110,15 +137,29 @@ func (p *bookmarksPanel) sync() {
 	p.m.SyncRevisionContext(current, p.s.core.Revisions.GetCommitIds())
 }
 
-func (p *bookmarksPanel) draw(dl *render.DisplayContext, inner layout.Box) { p.m.ViewRect(dl, inner) }
-func (p *bookmarksPanel) setFocused(focused bool)                          { p.m.SetFocused(focused) }
-func (p *bookmarksPanel) editing() bool                                    { return p.m.IsEditing() }
+func (p *bookmarksPanel) draw(dl *render.DisplayContext, inner layout.Box) {
+	if p.tab == tabTags {
+		p.tags.ViewRect(dl, inner)
+		return
+	}
+	p.m.ViewRect(dl, inner)
+}
+
+func (p *bookmarksPanel) setFocused(focused bool) {
+	p.m.SetFocused(focused && p.tab == tabRemotes)
+	p.tags.SetFocused(focused && p.tab == tabTags)
+}
+
+func (p *bookmarksPanel) editing() bool { return p.tab == tabRemotes && p.m.IsEditing() }
 
 // scopes: jjj.bookmarks is LeakAll and precedes the pane's own scopes, so an
 // unresolved raw key reaches the pane (the first non-LeakAll handler), not
 // the shared jjj handler, which drops raw keys. While editing only the
 // pane's scopes apply.
 func (p *bookmarksPanel) scopes() []common.Scope {
+	if p.tab == tabTags {
+		return []common.Scope{{Name: actions.ScopeJjjTags, Leak: common.LeakGlobal, Handler: p.s.h}}
+	}
 	if p.m.IsEditing() {
 		return p.m.Scopes()
 	}
@@ -126,6 +167,9 @@ func (p *bookmarksPanel) scopes() []common.Scope {
 }
 
 func (p *bookmarksPanel) handleIntent(intent intents.Intent) (tea.Cmd, bool) {
+	if p.tab == tabTags {
+		return p.tags.HandleIntent(intent)
+	}
 	if it, ok := intent.(intents.BookmarkPaneAdvance); ok {
 		return p.m.Advance(it.ToWorkingCopy), true
 	}

@@ -41,7 +41,7 @@ r rename, t/u track, P push, F fetch, e edit, n new, s show).
 |---|---|---|
 | Shell | `?` | help: common tasks with explanations, then every key (`/` searches) |
 | Shell | `f1` | upstream's compact expanded status help |
-| Shell | `0` `1` `2` `3` `4` `6` | focus Detail, Status, Files, Bookmarks, Journal, Notes |
+| Shell | `0` `1` `2` `3` `4` `6` `8` | focus Detail, Status, Files, Remotes, Journal, Notes, Tags |
 | Shell | `tab` / `shift+tab` | next / previous panel |
 | Shell | `+` / `_` | zoom focused panel in / out |
 | Shell | `J` | journal / graph |
@@ -62,8 +62,20 @@ r rename, t/u track, P push, F fetch, e edit, n new, s show).
 | Files | `tab` / `shift+tab` | next / previous panel |
 | Bookmarks | `a` | advance closest bookmark to the selected revision |
 | Bookmarks | `A` / `shift+a` | advance to @ and push |
+| Tags | `j` `k` `up` `down` | move |
+| Tags | `enter` / `s` | show the tag's commit in Journal |
+| Tags | `esc` | back to journal |
 
-Bookmarks rows: pinned bookmarks (`[bookmarks] pinned`, default `main`,
+Panel 3 has two tabs: **Remotes** (`3`) and **Tags** (`8`); pressing the
+other digit switches tab. The Remotes line lists each remote with the age of
+its last fetch (from `FETCH_HEAD`, which only records the most recent fetch,
+so other remotes show no age). Tags lists your milestone tags newest first
+with date and subject. A tag counts as yours unless its commit is reachable
+from a remote you track no bookmark on (for a fork, `upstream`): jj does not
+record which remote a tag came from. `[shell] hidden = ["tags"]` drops the
+tab; `"remotes"` is an alias of `"bookmarks"`.
+
+Remotes rows: pinned bookmarks (`[bookmarks] pinned`, default `main`,
 `master`, `trunk`) come first, tagged `trunk`. Each local bookmark shows its
 tracked remotes with a sync marker: `=` in sync, `↑n` local has n commits the
 remote lacks (push), `↓n` the remote has n commits local lacks, `⇅a/b`

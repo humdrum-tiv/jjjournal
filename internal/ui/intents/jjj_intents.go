@@ -10,6 +10,7 @@ package intents
 //jjui:bind scope=jjj.shell action=focus_bookmarks set=Panel:3
 //jjui:bind scope=jjj.shell action=focus_journal set=Panel:4
 //jjui:bind scope=jjj.shell action=focus_notes set=Panel:6
+//jjui:bind scope=jjj.shell action=focus_tags set=Panel:8
 //jjui:bind scope=jjj.detail action=back set=Panel:4
 //jjui:bind scope=jjj.notes action=back set=Panel:4
 //jjui:bind scope=jjj.status action=back set=Panel:4

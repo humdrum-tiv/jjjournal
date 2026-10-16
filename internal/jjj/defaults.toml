@@ -13,6 +13,7 @@ bindings = [
     { key = "3", action = "jjj.shell.focus_bookmarks", scope = "jjj.shell", desc = "focus bookmarks" },
     { key = "4", action = "jjj.shell.focus_journal", scope = "jjj.shell", desc = "focus journal" },
     { key = "6", action = "jjj.shell.focus_notes", scope = "jjj.shell", desc = "focus notes" },
+    { key = "8", action = "jjj.shell.focus_tags", scope = "jjj.shell", desc = "focus tags" },
     { key = "tab", action = "jjj.shell.next_panel", scope = "jjj.shell", desc = "next panel" },
     { key = "shift+tab", action = "jjj.shell.prev_panel", scope = "jjj.shell", desc = "previous panel" },
     { key = "+", action = "jjj.shell.zoom_in", scope = "jjj.shell", desc = "zoom in" },

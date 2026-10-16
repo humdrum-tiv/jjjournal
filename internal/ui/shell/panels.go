@@ -35,6 +35,18 @@ type intentPanel interface {
 	handleIntent(intent intents.Intent) (tea.Cmd, bool)
 }
 
+// tabbedPanel is implemented by panels whose box holds several tabs, each
+// focused by its own digit; drawPanel titles them all.
+type tabbedPanel interface {
+	tabTitles() []tabTitle
+}
+
+type tabTitle struct {
+	id     PanelID
+	title  string
+	active bool
+}
+
 // selectionPanel is implemented by panels whose cursor is a selection
 // (Files: the highlighted file drives Detail and $file).
 type selectionPanel interface {

@@ -22,6 +22,9 @@ const (
 	PanelTasks     PanelID = 5 // P3
 	PanelNotes     PanelID = 6
 	PanelStats     PanelID = 7 // P4
+	// PanelTags is the Tags tab of PanelBookmarks' box, not a layout panel:
+	// focusing it focuses PanelBookmarks on that tab.
+	PanelTags PanelID = 8
 )
 
 // Order is the draw order and the tab order.

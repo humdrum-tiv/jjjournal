@@ -364,6 +364,8 @@ func ResolveIntent(scope string, action keybindings.Action, args map[string]any)
 			return intents.ShellFocusPanel{Panel: 6}, true
 		case keybindings.Action("jjj.shell.focus_status"):
 			return intents.ShellFocusPanel{Panel: 1}, true
+		case keybindings.Action("jjj.shell.focus_tags"):
+			return intents.ShellFocusPanel{Panel: 8}, true
 		case keybindings.Action("jjj.shell.next_day"):
 			return intents.ShellJumpDay{Forward: true}, true
 		case keybindings.Action("jjj.shell.next_panel"):

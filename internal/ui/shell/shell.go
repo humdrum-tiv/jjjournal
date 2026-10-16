@@ -3,6 +3,8 @@ package shell
 import (
 	gocontext "context"
 	"fmt"
+	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/idursun/jjui/internal/ui/render"
 	"github.com/idursun/jjui/internal/ui/revisions"
 	"github.com/idursun/jjui/internal/ui/statuspanel"
+	"github.com/idursun/jjui/internal/ui/tags"
 )
 
 // focusPanelMsg is produced by clicking a panel's rectangle.
@@ -118,7 +121,7 @@ func New(ctx *appContext.MainContext, cfg *jjj.Config) *Shell {
 	})})
 	bookmarks := bookmarkpane.New(ctx)
 	bookmarks.EnableJournalView(cfg.Bookmarks.Pinned)
-	s.register(PanelBookmarks, &bookmarksPanel{s: s, m: bookmarks})
+	s.register(PanelBookmarks, &bookmarksPanel{s: s, m: bookmarks, tags: tags.New(ctx)})
 	return s
 }
 
@@ -200,6 +203,42 @@ func (s *Shell) setFocus(id PanelID) bool {
 	}
 	s.moveFocus(id)
 	return true
+}
+
+// focusPanel is setFocus for a digit or a click: PanelTags focuses
+// PanelBookmarks on its Tags tab, PanelBookmarks on its Remotes tab. A tab
+// switch is refused while the Remotes tab is editing, like a focus move.
+func (s *Shell) focusPanel(id PanelID) bool {
+	tab := tabRemotes
+	if id == PanelTags {
+		if s.tagsHidden() {
+			return false
+		}
+		id, tab = PanelBookmarks, tabTags
+	}
+	bp, ok := s.panels[id].(*bookmarksPanel)
+	if !ok {
+		return s.setFocus(id)
+	}
+	if bp.editing() || !s.setFocus(id) {
+		return false
+	}
+	bp.tab = tab
+	bp.setFocused(true)
+	return true
+}
+
+// tagsHidden: [shell] hidden = ["tags"] drops the Tags tab only.
+func (s *Shell) tagsHidden() bool { return slices.Contains(s.cfg.Shell.Hidden, "tags") }
+
+// journalHas reports whether Journal's loaded rows include commitID.
+func (s *Shell) journalHas(commitID string) bool {
+	if !s.hasCore {
+		return false
+	}
+	return slices.ContainsFunc(s.core.Revisions.GetCommitIds(), func(id string) bool {
+		return strings.EqualFold(id, commitID)
+	})
 }
 
 // moveFocus moves focus unconditionally.
@@ -339,7 +378,7 @@ func (s *Shell) Selection() common.SelectionSnapshot {
 func (s *Shell) handleIntent(intent intents.Intent) (tea.Cmd, bool) {
 	switch it := intent.(type) {
 	case intents.ShellFocusPanel:
-		s.setFocus(PanelID(it.Panel))
+		s.focusPanel(PanelID(it.Panel))
 		return nil, true
 	case intents.ShellCyclePanel:
 		s.setFocus(Cycle(s.focusable(), s.focus, it.Delta))
@@ -403,7 +442,7 @@ func (s *Shell) update(msg tea.Msg) (tea.Cmd, bool) {
 		s.click = msg.Mouse()
 		return nil, false
 	case focusPanelMsg:
-		s.setFocus(msg.id)
+		s.focusPanel(msg.id)
 		return nil, true
 	case revisions.PaneClickedMsg, revisions.ItemClickedMsg:
 		if !s.setFocus(PanelJournal) {
@@ -447,9 +486,15 @@ func (s *Shell) update(msg tea.Msg) (tea.Cmd, bool) {
 		}
 		s.moveFromBookmarks = false
 		return nil, false
-	case bookmarkpane.RevealRevisionMsg, bookmarkpane.BeginCreateBookmarkMsg:
-		// upstream (ui.handleSplitMsg) reveals the revision or starts the
-		// create operation on the revisions list; follow it there.
+	case bookmarkpane.RevealRevisionMsg:
+		// upstream (ui.handleSplitMsg) reveals the revision on the revisions
+		// list; follow it there, unless Journal has not loaded that commit.
+		if s.journalHas(msg.CommitID) {
+			s.setFocus(PanelJournal)
+		}
+		return nil, false
+	case bookmarkpane.BeginCreateBookmarkMsg:
+		// upstream starts the create operation on the revisions list.
 		s.setFocus(PanelJournal)
 		return nil, false
 	case confirmation.SelectOptionMsg, confirmation.CloseMsg:
@@ -533,8 +578,25 @@ func (s *Shell) drawPanel(dl *render.DisplayContext, box layout.Box, id PanelID)
 		Render("")
 	dl.AddDraw(box.R, frame, render.ZBase)
 	dl.AddInteraction(box.R, focusPanelMsg{id: id}, render.InteractionClick, -1)
-	dl.Text(box.R.Min.X+2, box.R.Min.Y, render.ZBase).
-		Styled(fmt.Sprintf("[%d]─%s", int(id), p.title()), style.Bold(s.focus == id)).
-		Done()
+	if tp, ok := p.(tabbedPanel); ok {
+		// [3]─Remotes─[8]─Tags: the active tab in the panel's style, the
+		// others dimmed; each label focuses its tab when clicked.
+		tb := dl.Text(box.R.Min.X+2, box.R.Min.Y, render.ZBase)
+		for i, t := range tp.tabTitles() {
+			if i > 0 {
+				tb.Styled("─", style)
+			}
+			st := borderUnfocused
+			if t.active {
+				st = style.Bold(s.focus == id)
+			}
+			tb.Clickable(fmt.Sprintf("[%d]─%s", int(t.id), t.title), st, focusPanelMsg{id: t.id})
+		}
+		tb.Done()
+	} else {
+		dl.Text(box.R.Min.X+2, box.R.Min.Y, render.ZBase).
+			Styled(fmt.Sprintf("[%d]─%s", int(id), p.title()), style.Bold(s.focus == id)).
+			Done()
+	}
 	p.draw(dl, box.Inset(1))
 }

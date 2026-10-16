@@ -1,10 +1,10 @@
 ---
 id: TASK-012.10
 title: Remotes panel (local vs each remote) and a separate Tags panel for milestones
-status: In progress
+status: Done
 assignee: []
 created_date: '2026-10-16 19:41'
-updated_date: '2026-10-16 20:46'
+updated_date: '2026-10-16 21:32'
 labels:
   - feature
 dependencies: []
@@ -21,9 +21,9 @@ Decided 2026-10-16: milestones move from bookmarks to git tags (jj 0.45 has jj t
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Remotes panel shows each local bookmark's sync state vs every tracked remote and each remote's last fetch
-- [ ] #2 Tags panel lists own milestone tags newest first with date and subject, excluding tags from other projects' remotes
-- [ ] #3 Selecting a tag reveals its commit in Journal
+- [x] #1 Remotes panel shows each local bookmark's sync state vs every tracked remote and each remote's last fetch
+- [x] #2 Tags panel lists own milestone tags newest first with date and subject, excluding tags from other projects' remotes
+- [x] #3 Selecting a tag reveals its commit in Journal
 <!-- AC:END -->
 
 ## Implementation Notes

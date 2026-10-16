@@ -262,6 +262,7 @@ function wait_refresh() end
 ---@field focus_journal fun()
 ---@field focus_notes fun()
 ---@field focus_status fun()
+---@field focus_tags fun()
 ---@field next_day fun()
 ---@field next_panel fun()
 ---@field prev_day fun()

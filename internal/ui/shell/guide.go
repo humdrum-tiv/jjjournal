@@ -42,13 +42,20 @@ var guide = []taskGroup{
 		},
 	},
 	{
-		name: "Common tasks · Bookmarks (3)",
+		name: "Common tasks · Remotes (3)",
 		tasks: []task{
 			{"jjj.bookmarks", "jjj.bookmarks.advance", "Advance: move bookmarks forward to the change selected in Journal."},
 			{"jjj.bookmarks", "jjj.bookmarks.advance_to_working_copy", "Advance to the working copy, then push (asks first)."},
 			{"bookmark_pane", "bookmark_pane.cycle_remotes", "Show one remote's bookmarks at a time (all, local, then each remote)."},
 			{"bookmark_pane", "bookmark_pane.show_in_revision", "Show the bookmark's commit in Journal."},
 			{"bookmark_pane", "bookmark_pane.fetch", "Fetch from remotes."},
+		},
+	},
+	{
+		name: "Common tasks · Tags (8)",
+		note: "Tags are your milestones: jj tag set v0.3 -r <revision>, then jj git push --tag v0.3.",
+		tasks: []task{
+			{"jjj.tags", "jjj.tags.reveal", "Show the tag's commit in Journal."},
 		},
 	},
 }
