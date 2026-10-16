@@ -13,6 +13,7 @@ package intents
 //jjui:bind scope=jjj.detail action=back set=Panel:4
 //jjui:bind scope=jjj.notes action=back set=Panel:4
 //jjui:bind scope=jjj.status action=back set=Panel:4
+//jjui:bind scope=jjj.tags action=back set=Panel:4
 type ShellFocusPanel struct {
 	Panel int
 }
@@ -103,3 +104,16 @@ type BookmarkPaneAdvance struct {
 }
 
 func (BookmarkPaneAdvance) isIntent() {}
+
+//jjui:bind scope=jjj.tags action=move_down set=Delta:1
+//jjui:bind scope=jjj.tags action=move_up set=Delta:-1
+type TagsMove struct {
+	Delta int
+}
+
+func (TagsMove) isIntent() {}
+
+//jjui:bind scope=jjj.tags action=reveal
+type TagsReveal struct{}
+
+func (TagsReveal) isIntent() {}

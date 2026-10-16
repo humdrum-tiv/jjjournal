@@ -57,6 +57,12 @@ bindings = [
     # bookmarks (upstream bookmark_pane keys also apply)
     { key = "a", action = "jjj.bookmarks.advance", scope = "jjj.bookmarks", desc = "advance" },
     { key = ["A", "shift+a"], action = "jjj.bookmarks.advance_to_working_copy", scope = "jjj.bookmarks", desc = "advance to @ + push" },
+
+    # tags (the Tags tab of panel 3)
+    { key = ["j", "down"], action = "jjj.tags.move_down", scope = "jjj.tags", desc = "down" },
+    { key = ["k", "up"], action = "jjj.tags.move_up", scope = "jjj.tags", desc = "up" },
+    { key = ["enter", "s"], action = "jjj.tags.reveal", scope = "jjj.tags", desc = "show in journal" },
+    { key = "esc", action = "jjj.tags.back", scope = "jjj.tags", desc = "back to journal" },
 ]
 
 [revisions]

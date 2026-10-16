@@ -25,6 +25,7 @@ const (
 	ScopeJjjNotes                 = "jjj.notes"
 	ScopeJjjShell                 = "jjj.shell"
 	ScopeJjjStatus                = "jjj.status"
+	ScopeJjjTags                  = "jjj.tags"
 	ScopeOplog                    = "oplog"
 	ScopeOplogQuickSearch         = "oplog.quick_search"
 	ScopePassword                 = "password"
@@ -382,6 +383,17 @@ func ResolveIntent(scope string, action keybindings.Action, args map[string]any)
 		switch action {
 		case keybindings.Action("jjj.status.back"):
 			return intents.ShellFocusPanel{Panel: 4}, true
+		}
+	case ScopeJjjTags:
+		switch action {
+		case keybindings.Action("jjj.tags.back"):
+			return intents.ShellFocusPanel{Panel: 4}, true
+		case keybindings.Action("jjj.tags.move_down"):
+			return intents.TagsMove{Delta: 1}, true
+		case keybindings.Action("jjj.tags.move_up"):
+			return intents.TagsMove{Delta: -1}, true
+		case keybindings.Action("jjj.tags.reveal"):
+			return intents.TagsReveal{}, true
 		}
 	case ScopeOplog:
 		switch action {

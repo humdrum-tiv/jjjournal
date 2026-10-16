@@ -225,6 +225,7 @@ function wait_refresh() end
 ---@field notes jjui.jjj.notes
 ---@field shell jjui.jjj.shell
 ---@field status jjui.jjj.status
+---@field tags jjui.jjj.tags
 
 ---@class jjui.jjj.bookmarks
 ---@field advance fun()
@@ -271,6 +272,12 @@ function wait_refresh() end
 
 ---@class jjui.jjj.status
 ---@field back fun()
+
+---@class jjui.jjj.tags
+---@field back fun()
+---@field move_down fun()
+---@field move_up fun()
+---@field reveal fun()
 
 ---@class jjui.oplog
 ---@field quick_search jjui.oplog.quick_search
