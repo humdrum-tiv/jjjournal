@@ -91,3 +91,43 @@ func TestGather(t *testing.T) {
 	require.Equal(t, "feature", noRemote.Bookmark)
 	require.False(t, noRemote.HasRemote, "count query failed → ahead/behind unknown")
 }
+
+func TestNormalizeRemoteURL(t *testing.T) {
+	for _, u := range []string{
+		"git@github.com:a/b.git",
+		"ssh://git@github.com/a/b",
+		"https://github.com/a/b/",
+		"github.com:a/b",
+		"https://user@GitHub.com/a/b.git",
+	} {
+		require.Equal(t, "github.com/a/b", normalizeRemoteURL(u), u)
+	}
+}
+
+func TestParseRemoteList(t *testing.T) {
+	require.Equal(t, map[string]string{
+		"origin":   "git@github.com:a/b.git",
+		"upstream": "https://github.com/c/d",
+	}, ParseRemoteList([]byte("origin git@github.com:a/b.git\nupstream https://github.com/c/d")))
+	require.Empty(t, ParseRemoteList(nil))
+}
+
+func TestRemoteFetchTimes(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, ".git"), 0o755))
+	head := filepath.Join(root, ".git", "FETCH_HEAD")
+	require.NoError(t, os.WriteFile(head, []byte("7d1e6d39\tnot-for-merge\tbranch 'main' of github.com:a/b\n"), 0o644))
+	at := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, os.Chtimes(head, at, at))
+
+	got := RemoteFetchTimes(root, map[string]string{
+		"origin":   "git@github.com:a/b.git",
+		"upstream": "git@github.com:c/d.git",
+	})
+	require.Len(t, got, 1)
+	require.True(t, got["origin"].Equal(at))
+}
+
+func TestRemoteFetchTimesNoFetchHead(t *testing.T) {
+	require.Empty(t, RemoteFetchTimes(t.TempDir(), map[string]string{"origin": "git@github.com:a/b.git"}))
+}

@@ -69,6 +69,70 @@ func FetchTime(repoRoot string) time.Time {
 	return time.Time{}
 }
 
+// ParseRemoteList reads `jj git remote list` output ("name url" per line).
+func ParseRemoteList(output []byte) map[string]string {
+	remotes := map[string]string{}
+	for _, line := range strings.Split(string(output), "\n") {
+		name, url, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if ok {
+			remotes[name] = strings.TrimSpace(url)
+		}
+	}
+	return remotes
+}
+
+// RemoteFetchTimes dates the last fetch of each remote whose URL appears in
+// FETCH_HEAD (which records only the most recent fetch); other remotes are
+// absent from the result.
+func RemoteFetchTimes(repoRoot string, remotes map[string]string) map[string]time.Time {
+	out := map[string]time.Time{}
+	for _, p := range []string{
+		filepath.Join(repoRoot, ".git", "FETCH_HEAD"),
+		filepath.Join(repoRoot, ".jj", "repo", "store", "git", "FETCH_HEAD"),
+	} {
+		st, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return out
+		}
+		fetched := map[string]bool{}
+		for _, line := range strings.Split(string(data), "\n") {
+			if i := strings.LastIndex(line, " of "); i >= 0 {
+				fetched[normalizeRemoteURL(line[i+len(" of "):])] = true
+			}
+		}
+		for name, url := range remotes {
+			if fetched[normalizeRemoteURL(url)] {
+				out[name] = st.ModTime()
+			}
+		}
+		return out
+	}
+	return out
+}
+
+// normalizeRemoteURL reduces the URL spellings of one repository to
+// "host/path": no scheme, user or .git suffix, host lowercased.
+func normalizeRemoteURL(u string) string {
+	u = strings.TrimSpace(u)
+	scp := true
+	if i := strings.Index(u, "://"); i >= 0 {
+		u, scp = u[i+3:], false
+	}
+	if i := strings.Index(u, "@"); i >= 0 && (scp || i < strings.Index(u+"/", "/")) {
+		u = u[i+1:]
+	}
+	if scp {
+		u = strings.Replace(u, ":", "/", 1)
+	}
+	u = strings.TrimSuffix(strings.TrimSuffix(u, "/"), ".git")
+	host, path, _ := strings.Cut(u, "/")
+	return strings.ToLower(host) + "/" + path
+}
+
 func FormatAge(now, at time.Time) string {
 	if at.IsZero() {
 		return "never"
