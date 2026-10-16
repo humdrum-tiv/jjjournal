@@ -2,7 +2,10 @@ package jj
 
 // jjj-only command builders (new file in an upstream package; see UPSTREAM.md).
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+)
 
 // BookmarkAdvance moves bookmarks forward to `to`. With no names jj advances
 // the closest bookmarks; names are matched exactly, not as globs.
@@ -51,4 +54,25 @@ func BookmarkOnlyIn(name, from, to string) CommandArgs {
 // GitRemoteListReadOnly is GitRemoteList without a working-copy snapshot.
 func GitRemoteListReadOnly() CommandArgs {
 	return CommandArgs{"git", "remote", "list", "--ignore-working-copy", "--color", "never"}
+}
+
+// TagListJournal lists local tags for the Tags panel, one per line:
+// name;present;commit id;committer time;foreign;subject. foreign is true
+// when the tag's commit is reachable from a foreign remote's bookmarks
+// (tags/ParseTags drops those); the subject comes last as it may hold ';'.
+func TagListJournal(foreign []string) CommandArgs {
+	revset := "none()"
+	if len(foreign) > 0 {
+		parts := make([]string, len(foreign))
+		for i, r := range foreign {
+			parts[i] = "remote_bookmarks(remote=exact:" + strconv.Quote(r) + ")"
+		}
+		revset = "::(" + strings.Join(parts, " | ") + ")"
+	}
+	template := `name ++ ";" ++ present ++ ";" ++ if(normal_target, ` +
+		`normal_target.commit_id().shortest() ++ ";" ++ ` +
+		`normal_target.committer().timestamp().format("%Y-%m-%dT%H:%M:%S%z") ++ ";" ++ ` +
+		`normal_target.contained_in('` + revset + `') ++ ";" ++ ` +
+		`normal_target.description().first_line(), ";;false;") ++ "\n"`
+	return CommandArgs{"tag", "list", "--ignore-working-copy", "--color", "never", "-T", template}
 }

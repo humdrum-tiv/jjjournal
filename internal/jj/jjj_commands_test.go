@@ -24,3 +24,12 @@ func TestBookmarkOnlyIn(t *testing.T) {
 		"-r", `"main"@"origin".."main"`, "-T", `"x\n"`}, BookmarkOnlyIn("main", "origin", ""))
 	require.Equal(t, `"main".."main"@"origin"`, BookmarkOnlyIn("main", "", "origin")[6])
 }
+
+func TestTagListJournalRevset(t *testing.T) {
+	none := TagListJournal(nil)
+	require.Equal(t, CommandArgs{"tag", "list", "--ignore-working-copy", "--color", "never", "-T"}, none[:6])
+	require.Contains(t, none[6], "contained_in('none()')")
+
+	up := TagListJournal([]string{"upstream", "other"})
+	require.Contains(t, up[6], `contained_in('::(remote_bookmarks(remote=exact:"upstream") | remote_bookmarks(remote=exact:"other"))')`)
+}
