@@ -21,6 +21,7 @@ type Entry struct {
 type ScopeGroup struct {
 	Name    string
 	Entries []Entry
+	Wide    bool // one entry per line, description wrapped (jjj seam, see Intro)
 }
 
 // FlatEntries returns all entries from a slice of groups in order.

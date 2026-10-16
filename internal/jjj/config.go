@@ -67,3 +67,30 @@ func ApplyDefaults(upstream *config.Config) error {
 	upstream.Revisions.Template = journal.RowTemplateGraph
 	return Current.Load(defaultsTOML)
 }
+
+// lightSelection replaces upstream's light-theme selection background, ANSI
+// white. Many light terminal palettes render white as a mid grey, so the
+// dimmed (bright black) text on a selected row became grey on grey. 253 is
+// a fixed light grey in every 256-colour palette.
+var lightSelection = map[string]config.Color{
+	":selected":                  {Bg: "253"},
+	"revisions details:selected": {Bg: "253", Bold: ptr(true)},
+	"revset completion:selected": {Bg: "253", Bold: ptr(true)},
+	"picker:selected":            {Fg: "cyan", Bg: "253", Bold: ptr(true), Underline: ptr(false)},
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// ApplyTheme layers jjj's theme colours onto a resolved theme. A selector
+// the user set in [ui.colors] is left alone.
+func ApplyTheme(colors map[string]config.Color, isDark bool) {
+	if isDark {
+		return
+	}
+	user := config.NormalizeColorSelectors(config.Current.UI.Colors)
+	for key, c := range config.NormalizeColorSelectors(lightSelection) {
+		if _, set := user[key]; !set {
+			colors[key] = c
+		}
+	}
+}

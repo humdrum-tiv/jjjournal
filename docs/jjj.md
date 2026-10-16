@@ -39,6 +39,8 @@ r rename, t/u track, P push, F fetch, e edit, n new, s show).
 
 | Group | Key | Action |
 |---|---|---|
+| Shell | `?` | help: common tasks with explanations, then every key (`/` searches) |
+| Shell | `f1` | upstream's compact expanded status help |
 | Shell | `0` `1` `2` `3` `4` `6` | focus Detail, Status, Files, Bookmarks, Journal, Notes |
 | Shell | `tab` / `shift+tab` | next / previous panel |
 | Shell | `+` / `_` | zoom focused panel in / out |

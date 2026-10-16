@@ -1,6 +1,7 @@
 package help
 
 import (
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -98,6 +99,11 @@ var scopeOrder = []string{
 	"ui",
 	"ui.preview",
 }
+
+// Intro groups are drawn before the keybinding groups, one entry per line
+// with the description wrapped, so a description can be a full sentence.
+// jjj seam: jjj fills it with its "common tasks" guide; empty upstream.
+var Intro []ScopeGroup
 
 type Model struct {
 	groups    []ScopeGroup
@@ -224,7 +230,7 @@ func (m *Model) applyFilter() {
 			}
 		}
 		if len(matched) > 0 {
-			result = append(result, ScopeGroup{Name: group.Name, Entries: matched})
+			result = append(result, ScopeGroup{Name: group.Name, Entries: matched, Wide: group.Wide})
 		}
 	}
 	m.filtered = result
@@ -312,7 +318,12 @@ func (m *Model) renderGroups(groups []ScopeGroup, width int, headingStyle, short
 		header := headingStyle.Width(width).Render("  " + group.Name + " ")
 		lines = append(lines, header)
 
-		entryLines := m.renderEntries(group.Entries, width, shortcutStyle, descStyle)
+		var entryLines []string
+		if group.Wide {
+			entryLines = renderWideEntries(group.Entries, width, shortcutStyle, descStyle)
+		} else {
+			entryLines = m.renderEntries(group.Entries, width, shortcutStyle, descStyle)
+		}
 		lines = append(lines, entryLines...)
 	}
 	return lines
@@ -354,8 +365,31 @@ func (m *Model) renderEntries(entries []Entry, width int, shortcutStyle, descSty
 	return lines
 }
 
+// renderWideEntries draws one entry per line, the description wrapped
+// under itself after the label column.
+func renderWideEntries(entries []Entry, width int, shortcutStyle, descStyle lipgloss.Style) []string {
+	labelWidth := 0
+	for _, e := range entries {
+		labelWidth = max(labelWidth, render.StringWidth(e.Label))
+	}
+	indent := 2 + labelWidth + 2
+	descWidth := max(width-indent, 10)
+	var lines []string
+	for _, e := range entries {
+		wrapped := strings.Split(lipgloss.Wrap(e.Desc, descWidth, ""), "\n")
+		for i, d := range wrapped {
+			label := strings.Repeat(" ", labelWidth+1)
+			if i == 0 {
+				label = shortcutStyle.Width(labelWidth + 1).Render(e.Label)
+			}
+			lines = append(lines, "  "+label+" "+descStyle.Render(d))
+		}
+	}
+	return lines
+}
+
 func New() *Model {
-	groups := buildGroups(config.Current.Bindings)
+	groups := append(slices.Clone(Intro), buildGroups(config.Current.Bindings)...)
 
 	ti := textinput.New()
 	ti.Placeholder = "search"

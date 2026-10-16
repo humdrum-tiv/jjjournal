@@ -21,6 +21,12 @@ bindings = [
     { key = "}", action = "jjj.shell.next_day", scope = "jjj.shell", desc = "next day" },
     { key = "{", action = "jjj.shell.prev_day", scope = "jjj.shell", desc = "previous day" },
 
+    # help: ? opens the scrollable overlay, which starts with jjj's common
+    # tasks guide; upstream's expanded status help moves to f1.
+    { key = "?", action = "ui.open_help", scope = "ui", desc = "help" },
+    { key = "f1", action = "ui.expand_status", scope = "ui", desc = "expand status help" },
+    { key = "?", action = "help.cancel", scope = "help", desc = "close" },
+
     # detail
     { key = ["j", "down"], action = "jjj.detail.scroll_down", scope = "jjj.detail", desc = "scroll down" },
     { key = ["k", "up"], action = "jjj.detail.scroll_up", scope = "jjj.detail", desc = "scroll up" },
@@ -58,7 +64,25 @@ revset = "all()"
 
 [preview]
 show_at_start = false
-revision_command = ["show", "--color", "always", "-r", "$change_id", "--stat", "--git"]
+# Detail leads with what the change says and when: the subject in bold, the
+# body, the author date, then ids and author dimmed, then the stat and diff.
+revision_command = [
+    "show", "--color", "always", "-r", "$change_id", "--stat", "--git",
+    "--config", 'colors."jjj subject"={ bold = true }',
+    "--config", 'colors."jjj meta"={ fg = "bright black" }',
+    "-T", '''
+if(description,
+  label("jjj subject", description.first_line()) ++ "\n"
+  ++ if(description.remove_prefix(description.first_line()).trim(),
+       "\n" ++ description.remove_prefix(description.first_line()).trim() ++ "\n"),
+  label("jjj subject", label("description placeholder", "(no description set)")) ++ "\n")
+++ "\n"
+++ label("timestamp", author.timestamp().local().format("%a %Y-%m-%d %H:%M"))
+++ label("jjj meta", "  " ++ author.timestamp().ago()) ++ "\n"
+++ label("jjj meta", change_id.shortest(8) ++ " · " ++ commit_id.shortest(8) ++ " · " ++ author.name())
+++ "\n\n"
+''',
+]
 file_command = ["diff", "--color", "always", "-r", "$change_id", "--git", "$file"]
 
 [journal]

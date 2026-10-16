@@ -25,6 +25,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/idursun/jjui/internal/ui"
+	helpview "github.com/idursun/jjui/internal/ui/help"
 	"github.com/idursun/jjui/internal/ui/shell"
 )
 
@@ -250,6 +251,7 @@ func run() int {
 		fmt.Fprintf(os.Stderr, "Error loading theme: %v\n", err)
 		return 1
 	}
+	jjj.ApplyTheme(theme.Colors, appContext.TerminalHasDarkBackground)
 	appContext.ThemeBackgroundBlend = theme.BackgroundBlend
 	common.DefaultPalette.Update(theme.Colors)
 	common.DefaultPalette.ConfigureBackgroundBlend(
@@ -275,6 +277,7 @@ func run() int {
 
 	// jjj: extension
 	ui.WindowTitlePrefix = "jjj"
+	helpview.Intro = shell.Guide(config.Current.Bindings)
 	var model tea.Model
 	if jjj.Current.Shell.Enabled {
 		model = ui.NewWithExtension(appContext, shell.New(appContext, jjj.Current))

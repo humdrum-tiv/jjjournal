@@ -16,7 +16,7 @@ func TestApplyDefaultsSetsJournalDefaults(t *testing.T) {
 	require.Equal(t, "all()", upstream.Revisions.Revset)
 	require.Equal(t, journal.RowTemplateGraph, upstream.Revisions.Template)
 	require.False(t, upstream.Preview.ShowAtStart)
-	require.Equal(t, []string{"show", "--color", "always", "-r", "$change_id", "--stat", "--git"}, upstream.Preview.RevisionCommand)
+	require.Equal(t, []string{"show", "--color", "always", "-r", "$change_id", "--stat", "--git"}, upstream.Preview.RevisionCommand[:7])
 	require.Equal(t, []string{"diff", "--color", "always", "-r", "$change_id", "--git", "$file"}, upstream.Preview.FileCommand)
 
 	require.True(t, Current.Journal.Enabled)
@@ -47,4 +47,22 @@ func TestLoadOverridesOnlyGivenKeys(t *testing.T) {
 func TestLoadIgnoresUpstreamTables(t *testing.T) {
 	Current = &Config{}
 	require.NoError(t, Current.Load("[revisions]\nrevset = \"mine()\"\n[ui]\ntheme = \"x\"\n"))
+}
+
+func TestApplyThemeLightSelectionRespectsUserColors(t *testing.T) {
+	saved := config.Current.UI.Colors
+	t.Cleanup(func() { config.Current.UI.Colors = saved })
+
+	config.Current.UI.Colors = map[string]config.Color{"picker:selected": {Bg: "red"}}
+	colors := map[string]config.Color{
+		":selected":       {Bg: "white"},
+		"picker:selected": {Bg: "red"},
+	}
+	ApplyTheme(colors, false)
+	require.Equal(t, "253", colors[":selected"].Bg)
+	require.Equal(t, "red", colors["picker:selected"].Bg)
+
+	dark := map[string]config.Color{":selected": {Bg: "bright black"}}
+	ApplyTheme(dark, true)
+	require.Equal(t, "bright black", dark[":selected"].Bg)
 }

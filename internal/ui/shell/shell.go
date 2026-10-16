@@ -526,8 +526,8 @@ func (s *Shell) drawPanel(dl *render.DisplayContext, box layout.Box, id PanelID)
 	frame := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(style.GetForeground()).
-		Width(w - 2).
-		Height(h - 2).
+		Width(w).
+		Height(h).
 		Render("")
 	dl.AddDraw(box.R, frame, render.ZBase)
 	dl.AddInteraction(box.R, focusPanelMsg{id: id}, render.InteractionClick, -1)
